@@ -45,6 +45,16 @@ export default {
       return json({ ok: true });
     }
 
+    // Public: check booked time slots for a date (no personal info exposed)
+    if (path === "/api/appointments/by-date" && request.method === "GET") {
+      const date = url.searchParams.get("date");
+      if (!date) return json({ error: "date required" }, 400);
+      const { results } = await env.DB.prepare(
+        "SELECT pref_time FROM appointments WHERE pref_date = ? AND status != 'cancelled' ORDER BY pref_time ASC"
+      ).bind(date).all();
+      return json(results.map(r => r.pref_time).filter(Boolean));
+    }
+
     // Public: submit a new appointment request
     if (path === "/api/appointments" && request.method === "POST") {
       const body = await request.json();
@@ -85,6 +95,29 @@ export default {
       const authErr = checkAuth(request, env);
       if (authErr) return authErr;
       await env.DB.prepare("DELETE FROM appointments WHERE id = ?").bind(statusMatch[1]).run();
+      return json({ ok: true });
+    }
+
+    // Admin: get notes for an appointment
+    const notesMatch = path.match(/^\/api\/admin\/appointments\/(\d+)\/notes$/);
+    if (notesMatch && request.method === "GET") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const { results } = await env.DB.prepare(
+        "SELECT * FROM appointment_notes WHERE appointment_id = ? ORDER BY created_at ASC"
+      ).bind(notesMatch[1]).all();
+      return json(results);
+    }
+
+    // Admin: add a note for an appointment
+    if (notesMatch && request.method === "POST") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const body = await request.json();
+      if (!body.note) return json({ error: "note required" }, 400);
+      await env.DB.prepare(
+        "INSERT INTO appointment_notes (appointment_id, note, created_at) VALUES (?, ?, ?)"
+      ).bind(notesMatch[1], body.note, Date.now()).run();
       return json({ ok: true });
     }
 
