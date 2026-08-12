@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - Case Photos | J.K. Hospital Dental Care Center</title>
+<style>
+:root{--navy:#073b4c;--teal:#0b8f8f;--bg:#f7fbfb;--ink:#18323a;--muted:#60747b;--shadow:0 12px 35px rgba(7,59,76,.10)}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);padding:20px}
+.wrap{max-width:760px;margin:auto}
+h1{color:var(--navy);font-size:22px}
+.box{background:white;border-radius:16px;padding:24px;box-shadow:var(--shadow);margin-bottom:20px}
+label{font-weight:700;font-size:13px;display:block;margin-bottom:6px;color:var(--navy)}
+input,button{font:inherit;padding:12px 14px;border-radius:10px;border:1px solid #d8e4e6;width:100%;box-sizing:border-box}
+button{background:var(--teal);color:white;font-weight:800;border:0;cursor:pointer;margin-top:10px}
+button.danger{background:#d64545}
+button.secondary{background:white;color:var(--navy);border:1px solid #d4e5e7}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.item{background:white;border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.item img{width:100%;height:120px;object-fit:cover;display:block}
+.item .meta{padding:10px}
+.item .meta p{margin:0 0 8px;font-size:13px;font-weight:700;color:var(--navy)}
+#msg{font-size:13px;margin-top:8px}
+#loginBox,#panel{display:none}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="top">
+<h1>Case Photos - Admin</h1>
+<a class="back" href="/">← Back to website</a>
+</div>
+
+<div class="box" id="loginBox">
+<label for="pw">Admin Password</label>
+<input id="pw" type="password" placeholder="Enter password">
+<button onclick="login()">Login</button>
+<p id="loginMsg" style="color:#d64545;font-size:13px"></p>
+</div>
+
+<div id="panel">
+<div class="box">
+<label for="fileInput">Add New Case Photo</label>
+<input id="fileInput" type="file" accept="image/*">
+<label for="label" style="margin-top:12px">Label (e.g. "Root Canal - Before & After")</label>
+<input id="label" type="text" placeholder="Short description">
+<button onclick="upload()">Upload Photo</button>
+<p id="msg"></p>
+</div>
+
+<div class="box">
+<label>Existing Photos</label>
+<div class="grid" id="grid"><p style="color:var(--muted)">Loading...</p></div>
+</div>
+<button class="secondary" onclick="logout()">Logout</button>
+</div>
+</div>
+
+<script>
+let TOKEN=sessionStorage.getItem("jkh_admin_pw")||"";
+
+function show(el,on){document.getElementById(el).style.display=on?"block":"none";}
+
+async function checkAuth(){
+ if(!TOKEN){show("loginBox",true);show("panel",false);return;}
+ const ok=await verify();
+ if(ok){show("loginBox",false);show("panel",true);loadGrid();}
+ else{TOKEN="";sessionStorage.removeItem("jkh_admin_pw");show("loginBox",true);show("panel",false);}
+}
+
+async function verify(){
+ try{
+  const res=await fetch("/api/admin/cases",{headers:{"Authorization":"Bearer "+TOKEN}});
+  return res.status!==401;
+ }catch(e){return false;}
+}
+
+async function login(){
+ const pw=document.getElementById("pw").value;
+ TOKEN=pw;
+ const ok=await verify();
+ if(ok){
+  sessionStorage.setItem("jkh_admin_pw",TOKEN);
+  document.getElementById("loginMsg").textContent="";
+  show("loginBox",false);show("panel",true);loadGrid();
+ }else{
+  document.getElementById("loginMsg").textContent="Wrong password. Try again.";
+ }
+}
+
+function logout(){
+ TOKEN="";sessionStorage.removeItem("jkh_admin_pw");
+ show("panel",false);show("loginBox",true);
+}
+
+async function loadGrid(){
+ const grid=document.getElementById("grid");
+ grid.innerHTML="Loading...";
+ const res=await fetch("/api/admin/cases",{headers:{"Authorization":"Bearer "+TOKEN}});
+ const data=await res.json();
+ if(!data.length){grid.innerHTML='<p style="color:var(--muted)">No photos yet.</p>';return;}
+ grid.innerHTML=data.map(c=>`<div class="item"><img src="${c.image}"><div class="meta"><p>${(c.label||'Untitled').replace(/</g,'&lt;')}</p><button class="danger" onclick="del(${c.id})">Delete</button></div></div>`).join("");
+}
+
+function fileToBase64(file){
+ return new Promise((res,rej)=>{
+  const r=new FileReader();
+  r.onload=()=>res(r.result);
+  r.onerror=rej;
+  r.readAsDataURL(file);
+ });
+}
+
+async function upload(){
+ const fileInput=document.getElementById("fileInput");
+ const label=document.getElementById("label").value.trim();
+ const msg=document.getElementById("msg");
+ if(!fileInput.files[0]){msg.style.color="#d64545";msg.textContent="Please choose a photo first.";return;}
+ msg.style.color="var(--muted)";msg.textContent="Uploading...";
+ try{
+  const base64=await fileToBase64(fileInput.files[0]);
+  const res=await fetch("/api/admin/cases",{
+   method:"POST",
+   headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},
+   body:JSON.stringify({image:base64,label})
+  });
+  if(!res.ok)throw new Error("Upload failed");
+  msg.style.color="#18a85b";msg.textContent="Uploaded successfully.";
+  fileInput.value="";document.getElementById("label").value="";
+  loadGrid();
+ }catch(e){
+  msg.style.color="#d64545";msg.textContent="Upload failed. Try again.";
+ }
+}
+
+async function del(id){
+ if(!confirm("Delete this photo?"))return;
+ await fetch("/api/admin/cases/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+TOKEN}});
+ loadGrid();
+}
+
+checkAuth();
+</script>
+</body>
+</html>
