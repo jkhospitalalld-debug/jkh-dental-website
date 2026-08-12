@@ -1,6 +1,0 @@
-CREATE TABLE IF NOT EXISTS case_photos (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  image TEXT NOT NULL,
-  label TEXT,
-  created_at INTEGER
-);
