@@ -27,6 +27,9 @@ export default {
       if (authErr) return authErr;
       const body = await request.json();
       if (!body.image) return json({ error: "image required" }, 400);
+      if (body.image.length > 1800000) {
+        return json({ error: "Image too large. Please use a smaller photo." }, 413);
+      }
       await env.DB.prepare(
         "INSERT INTO case_photos (image, label, created_at) VALUES (?, ?, ?)"
       ).bind(body.image, body.label || "", Date.now()).run();
