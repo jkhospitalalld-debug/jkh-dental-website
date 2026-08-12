@@ -25,6 +25,15 @@ button.secondary{background:white;color:var(--navy);border:1px solid #d4e5e7}
 #loginBox,#panel{display:none}
 .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
+.appt-card{background:white;border-radius:12px;box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.appt-card h4{margin:0 0 6px;color:var(--navy)}
+.appt-card p{margin:2px 0;font-size:13px;color:var(--ink)}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800;text-transform:uppercase}
+.badge.pending{background:#fff3cd;color:#7a5b00}
+.badge.confirmed{background:#d4f4dd;color:#0f6b2e}
+.badge.cancelled{background:#fbdada;color:#a11c1c}
+.appt-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.appt-actions button{width:auto;padding:8px 12px;font-size:12px;margin:0}
 </style>
 </head>
 <body>
@@ -42,6 +51,12 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 </div>
 
 <div id="panel">
+<div class="box" style="display:flex;gap:10px;padding:14px">
+<button id="tabCasesBtn" onclick="showTab('cases')" style="margin:0">Case Photos</button>
+<button id="tabApptBtn" onclick="showTab('appt')" class="secondary" style="margin:0">Appointments</button>
+</div>
+
+<div id="tabCases">
 <div class="box">
 <label for="fileInput">Add New Case Photo</label>
 <input id="fileInput" type="file" accept="image/*">
@@ -55,6 +70,15 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 <label>Existing Photos</label>
 <div class="grid" id="grid"><p style="color:var(--muted)">Loading...</p></div>
 </div>
+</div>
+
+<div id="tabAppt" style="display:none">
+<div class="box">
+<label>Appointment Requests</label>
+<div id="apptList"><p style="color:var(--muted)">Loading...</p></div>
+</div>
+</div>
+
 <button class="secondary" onclick="logout()">Logout</button>
 </div>
 </div>
@@ -157,6 +181,52 @@ async function del(id){
  if(!confirm("Delete this photo?"))return;
  await fetch("/api/admin/cases/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+TOKEN}});
  loadGrid();
+}
+
+function showTab(tab){
+ document.getElementById("tabCases").style.display=tab==="cases"?"block":"none";
+ document.getElementById("tabAppt").style.display=tab==="appt"?"block":"none";
+ document.getElementById("tabCasesBtn").className=tab==="cases"?"":"secondary";
+ document.getElementById("tabApptBtn").className=tab==="appt"?"":"secondary";
+ if(tab==="appt")loadAppointments();
+}
+
+async function loadAppointments(){
+ const list=document.getElementById("apptList");
+ list.innerHTML="Loading...";
+ const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN}});
+ const data=await res.json();
+ if(!data.length){list.innerHTML='<p style="color:var(--muted)">No appointment requests yet.</p>';return;}
+ list.innerHTML=data.map(a=>`
+  <div class="appt-card">
+   <h4>${esc(a.name)} <span class="badge ${a.status}">${a.status}</span></h4>
+   <p>📞 ${esc(a.phone)} &nbsp;•&nbsp; ${esc(a.patient_type||'-')}</p>
+   <p>🦷 ${esc(a.service||'-')}</p>
+   <p>📅 ${esc(a.pref_date||'-')} &nbsp; 🕒 ${esc(a.pref_time||'-')}</p>
+   ${a.message?`<p>📝 ${esc(a.message)}</p>`:""}
+   <div class="appt-actions">
+    <button onclick="setStatus(${a.id},'confirmed')" style="background:#0b8f8f;color:#fff">Confirm</button>
+    <button onclick="setStatus(${a.id},'cancelled')" style="background:#d64545;color:#fff">Cancel</button>
+    <button onclick="delAppt(${a.id})" style="background:white;color:var(--navy);border:1px solid #d4e5e7">Delete</button>
+   </div>
+  </div>`).join("");
+}
+
+function esc(s){return String(s).replace(/</g,"&lt;");}
+
+async function setStatus(id,status){
+ await fetch("/api/admin/appointments/"+id,{
+  method:"PATCH",
+  headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},
+  body:JSON.stringify({status})
+ });
+ loadAppointments();
+}
+
+async function delAppt(id){
+ if(!confirm("Delete this appointment request?"))return;
+ await fetch("/api/admin/appointments/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+TOKEN}});
+ loadAppointments();
 }
 
 checkAuth();

@@ -147,10 +147,13 @@ nav{display:none}.hero{padding:55px 18px}.hero-inner,.about,.contact-grid{grid-t
 <form onsubmit="sendAppointment(event)">
 <input id="name" placeholder="Patient Name" required>
 <input id="phone" type="tel" placeholder="Mobile Number" required>
-<select id="service"><option value="">Select Service</option><option>Dental Consultation</option><option>Root Canal Treatment</option><option>Crown / Bridge</option><option>Dental Implant</option><option>Extraction / Oral Surgery</option><option>Other</option></select>
-<input id="date" type="date">
-<textarea id="message" placeholder="Any symptoms or message"></textarea>
-<button class="btn" type="submit">Send Appointment Request</button>
+<select id="patientType" required><option value="">New or Existing Patient?</option><option>New Patient</option><option>Existing Patient</option></select>
+<select id="service" required><option value="">Select Treatment</option><option>Dental Consultation</option><option>Root Canal Treatment</option><option>Crown / Bridge</option><option>Dental Implant</option><option>Extraction / Oral Surgery</option><option>Other</option></select>
+<input id="date" type="date" required>
+<input id="time" type="time" required>
+<textarea id="message" placeholder="Any symptoms or message (optional)"></textarea>
+<button class="btn" type="submit">Book Appointment</button>
+<p id="apptMsg" style="font-size:13px;margin-top:8px"></p>
 </form>
 </div>
 </div>
@@ -201,15 +204,37 @@ async function loadCases(){
  }
 }
 loadCases();
-function sendAppointment(e){
+async function sendAppointment(e){
  e.preventDefault();
  const name=document.getElementById("name").value.trim();
  const phone=document.getElementById("phone").value.trim();
- const service=document.getElementById("service").value||"Dental Consultation";
- const date=document.getElementById("date").value||"Preferred date not specified";
+ const patientType=document.getElementById("patientType").value;
+ const service=document.getElementById("service").value;
+ const date=document.getElementById("date").value;
+ const time=document.getElementById("time").value;
  const msg=document.getElementById("message").value.trim();
- const text=`Appointment Request%0AName: ${encodeURIComponent(name)}%0AMobile: ${encodeURIComponent(phone)}%0AService: ${encodeURIComponent(service)}%0ADate: ${encodeURIComponent(date)}%0AMessage: ${encodeURIComponent(msg||"None")}`;
- window.open(`https://wa.me/919450595694?text=${text}`,"_blank");
+ const apptMsg=document.getElementById("apptMsg");
+ const btn=e.target.querySelector("button");
+ btn.disabled=true;btn.textContent="Booking...";
+ apptMsg.style.color="var(--muted)";apptMsg.textContent="";
+ try{
+  const res=await fetch("/api/appointments",{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({name,phone,patientType,service,date,time,message:msg})
+  });
+  if(!res.ok)throw new Error("Could not save appointment");
+  apptMsg.style.color="#18a85b";
+  apptMsg.textContent="Appointment request saved! Opening WhatsApp to confirm...";
+  const text=`Appointment Request%0AName: ${encodeURIComponent(name)}%0AMobile: ${encodeURIComponent(phone)}%0APatient Type: ${encodeURIComponent(patientType)}%0ATreatment: ${encodeURIComponent(service)}%0ADate: ${encodeURIComponent(date)}%0ATime: ${encodeURIComponent(time)}%0AMessage: ${encodeURIComponent(msg||"None")}`;
+  window.open(`https://wa.me/919450595694?text=${text}`,"_blank");
+  e.target.reset();
+ }catch(err){
+  apptMsg.style.color="#d64545";
+  apptMsg.textContent="Could not save appointment. Please try again or call the clinic.";
+ }finally{
+  btn.disabled=false;btn.textContent="Book Appointment";
+ }
 }
 </script>
 </body>
