@@ -205,22 +205,61 @@ async function loadAppointments(){
    <p>📅 ${esc(a.pref_date||'-')} &nbsp; 🕒 ${esc(a.pref_time||'-')}</p>
    ${a.message?`<p>📝 ${esc(a.message)}</p>`:""}
    <div class="appt-actions">
-    <button onclick="setStatus(${a.id},'confirmed')" style="background:#0b8f8f;color:#fff">Confirm</button>
+    <button onclick="setStatus(${a.id},'confirmed','${esc(a.phone)}','${esc(a.name)}','${esc(a.pref_date||'')}','${esc(a.pref_time||'')}')" style="background:#0b8f8f;color:#fff">Confirm</button>
     <button onclick="setStatus(${a.id},'cancelled')" style="background:#d64545;color:#fff">Cancel</button>
     <button onclick="delAppt(${a.id})" style="background:white;color:var(--navy);border:1px solid #d4e5e7">Delete</button>
+    <button onclick="toggleNotes(${a.id})" style="background:white;color:var(--teal);border:1px solid #d4e5e7">Notes</button>
+   </div>
+   <div id="notes-${a.id}" style="display:none;margin-top:12px;border-top:1px solid #eef3f3;padding-top:10px">
+    <div id="notesList-${a.id}" style="font-size:13px;margin-bottom:8px"></div>
+    <input id="noteInput-${a.id}" placeholder="Add a note..." style="margin-bottom:6px">
+    <button onclick="addNote(${a.id})" style="background:var(--teal);color:#fff;width:auto;padding:8px 14px;font-size:12px">Add Note</button>
    </div>
   </div>`).join("");
 }
 
+function toggleNotes(id){
+ const el=document.getElementById("notes-"+id);
+ const open=el.style.display==="block";
+ el.style.display=open?"none":"block";
+ if(!open)loadNotes(id);
+}
+
+async function loadNotes(id){
+ const container=document.getElementById("notesList-"+id);
+ container.innerHTML="Loading...";
+ const res=await fetch(`/api/admin/appointments/${id}/notes`,{headers:{"Authorization":"Bearer "+TOKEN}});
+ const notes=await res.json();
+ if(!notes.length){container.innerHTML='<p style="color:var(--muted)">No notes yet.</p>';return;}
+ container.innerHTML=notes.map(n=>`<p style="margin:4px 0;padding:8px;background:var(--bg);border-radius:8px">${esc(n.note)}<br><span style="color:var(--muted);font-size:11px">${new Date(n.created_at).toLocaleString()}</span></p>`).join("");
+}
+
+async function addNote(id){
+ const input=document.getElementById("noteInput-"+id);
+ const note=input.value.trim();
+ if(!note)return;
+ await fetch(`/api/admin/appointments/${id}/notes`,{
+  method:"POST",
+  headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},
+  body:JSON.stringify({note})
+ });
+ input.value="";
+ loadNotes(id);
+}
+
 function esc(s){return String(s).replace(/</g,"&lt;");}
 
-async function setStatus(id,status){
+async function setStatus(id,status,phone,name,date,time){
  await fetch("/api/admin/appointments/"+id,{
   method:"PATCH",
   headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},
   body:JSON.stringify({status})
  });
  loadAppointments();
+ if(status==="confirmed" && phone){
+  const text=`Hello ${encodeURIComponent(name)}, your appointment at J.K. Hospital Dental Care Center is confirmed for ${encodeURIComponent(date)} at ${encodeURIComponent(time)}. See you then!`;
+  window.open(`https://wa.me/91${phone.replace(/\D/g,"").slice(-10)}?text=${text}`,"_blank");
+ }
 }
 
 async function delAppt(id){
