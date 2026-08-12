@@ -9,4 +9,4 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "jkh-website-db"
-database_id = "PASTE_YOUR_DATABASE_ID_HERE"
+database_id = "c16c01ca-b115-4ea9-9664-9e0b24279f15"
