@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="My J.K. Dental patient portal">
+<title>My J.K. Dental | Patient Portal</title>
+<style>
+:root{--n:#073b4c;--t:#0b8f8f;--bg:#f5fafa;--w:#fff;--mut:#64777d;--line:#dcebed}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:#18323a}
+.top{background:var(--n);color:#fff;padding:15px 20px}.topin,.wrap{max-width:1100px;margin:auto}.topin{display:flex;justify-content:space-between;align-items:center}.brand{font-weight:800}.brand small{display:block;font-size:11px;opacity:.8}
+.screen{display:none}.active{display:block}.login{max-width:460px;margin:7vh auto;background:#fff;padding:34px;border-radius:24px;box-shadow:0 12px 35px #073b4c18}.logo{font-size:34px}.login h1,h1,h2{color:var(--n)}p{color:var(--mut)}
+label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{width:100%;padding:13px;border:1px solid var(--line);border-radius:10px;font:inherit}.btn{border:0;background:var(--t);color:#fff;padding:12px 17px;border-radius:11px;font-weight:800;cursor:pointer}.secondary{background:#fff;color:var(--n);border:1px solid #d4e5e7}.full{width:100%;margin-top:18px}.note{margin-top:16px;padding:12px;border-radius:10px;background:#fff8df;font-size:12px}
+.wrap{padding:28px 18px}.hero,.panel,.card{background:#fff;border-radius:18px;box-shadow:0 8px 25px #073b4c0d}.hero{padding:24px;display:flex;justify-content:space-between;gap:20px;align-items:center}.uhid{color:var(--t);font-weight:800}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.tab{padding:10px 13px;border:1px solid var(--line);background:#fff;border-radius:10px;font-weight:700;color:var(--n);cursor:pointer}.tab.sel{background:var(--n);color:#fff}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}.card{padding:20px}.stat{font-size:27px;font-weight:900;color:var(--n)}.mut{font-size:13px;color:var(--mut)}.panel{padding:22px;margin-top:18px}.row{display:flex;justify-content:space-between;gap:20px;padding:15px 0;border-bottom:1px solid var(--line)}.pill{background:#e8f8f7;color:var(--t);padding:5px 9px;border-radius:20px;font-size:12px;font-weight:800}.footer{text-align:center;color:var(--mut);font-size:12px;padding:30px}
+.pill.pending{background:#fff3cd;color:#7a5b00}.pill.confirmed{background:#d4f4dd;color:#0f6b2e}.pill.cancelled{background:#fbdada;color:#a11c1c}
+.xray-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}.xray-grid img{width:100%;height:120px;object-fit:cover;border-radius:10px;box-shadow:0 4px 12px #073b4c14}
+.err{color:#c0392b;font-size:13px;margin-top:10px}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.hero{display:block}.wrap{padding:20px 14px}}@media(max-width:480px){.grid{grid-template-columns:1fr}.login{margin:3vh 14px;padding:25px}}
+</style>
+</head>
+<body>
+<div class="top"><div class="topin"><div class="brand">🦷 J.K. HOSPITAL DENTAL CARE CENTER<small>MY J.K. DENTAL • PATIENT PORTAL</small></div><a href="/" class="btn secondary">← Website</a></div></div>
+
+<section id="login" class="screen active"><div class="login"><div class="logo">🦷</div><h1>My J.K. Dental</h1>
+<p>Access appointments, prescriptions, bills and dental records.</p>
+<label>UHID</label><input id="uhid" placeholder="e.g. 20260812M0001">
+<label>Mobile Number</label><input id="mobile" maxlength="10" inputmode="numeric" placeholder="10-digit mobile number (as given at billing)">
+<button class="btn full" onclick="login()" id="loginBtn">Continue</button>
+<p id="loginErr" class="err"></p>
+<div class="note">Your UHID is printed on your bill/prescription slip. Mobile number must match the one given at the billing counter.</div></div></section>
+
+<section id="portal" class="screen"><div class="wrap">
+<div class="hero"><div><h1 id="welcome">Welcome</h1><p>Your J.K. Dental account overview.</p><div id="showUhid" class="uhid"></div></div><a class="btn" href="/#appointment">Book Appointment</a></div>
+<div class="tabs">
+<button class="tab sel" data-id="dashboard" onclick="show('dashboard')">Dashboard</button>
+<button class="tab" data-id="appointments" onclick="show('appointments')">Appointments</button>
+<button class="tab" data-id="treatment" onclick="show('treatment')">Treatment History</button>
+<button class="tab" data-id="prescriptions" onclick="show('prescriptions')">Prescriptions</button>
+<button class="tab" data-id="bills" onclick="show('bills')">Bills</button>
+<button class="tab" data-id="reports" onclick="show('reports')">X-Rays</button>
+<button class="tab" data-id="profile" onclick="show('profile')">Profile</button>
+</div>
+
+<div id="dashboard" class="content"><div class="grid">
+<div class="card"><div class="stat" id="statUpcoming">0</div><div class="mut">Upcoming Appointments</div></div>
+<div class="card"><div class="stat" id="statVisits">0</div><div class="mut">Visits</div></div>
+<div class="card"><div class="stat" id="statMeds">0</div><div class="mut">Prescriptions</div></div>
+<div class="card"><div class="stat" id="statBalance">₹0</div><div class="mut">Outstanding Balance</div></div>
+</div><div class="panel"><h2>Next Appointment</h2><div id="nextAppt"><p class="mut">Loading...</p></div></div></div>
+
+<div id="appointments" class="content" style="display:none"><div class="panel"><h2>Appointments</h2><div id="apptList"><p class="mut">Loading...</p></div><a class="btn" href="/#appointment" style="display:inline-block;margin-top:12px">Request New Appointment</a></div></div>
+
+<div id="treatment" class="content" style="display:none"><div class="panel"><h2>Treatment History</h2><div id="treatmentList"><p class="mut">Loading...</p></div></div></div>
+
+<div id="prescriptions" class="content" style="display:none"><div class="panel"><h2>Prescriptions</h2><div id="medsList"><p class="mut">Loading...</p></div></div></div>
+
+<div id="bills" class="content" style="display:none"><div class="panel"><h2>Bills & Payments</h2><div id="billsList"><p class="mut">Loading...</p></div></div></div>
+
+<div id="reports" class="content" style="display:none"><div class="panel"><h2>X-Rays</h2><div id="xrayGrid" class="xray-grid"><p class="mut">Loading...</p></div></div></div>
+
+<div id="profile" class="content" style="display:none"><div class="panel"><h2>Patient Profile</h2><div class="row"><span>Name</span><b id="pn">-</b></div><div class="row"><span>Mobile</span><b id="pm">-</b></div><div class="row"><span>Age / Sex</span><b id="pas">-</b></div><div class="row"><span>UHID</span><b id="pu">-</b></div></div></div>
+
+<div class="footer">J.K. Hospital Dental Care Center • Prayagraj<br>For any correction in your records, please contact the clinic.</div>
+</div></section>
+
+<script>
+const BILLING_API = "https://jkh-billand-pres.jkhospitalalld.workers.dev";
+let STATE = { uhid:"", mobile:"", patient:null, bills:[], xrays:[], appts:[] };
+
+async function login(){
+ const uhid = document.getElementById('uhid').value.trim();
+ const mobile = document.getElementById('mobile').value.trim();
+ const err = document.getElementById('loginErr');
+ const btn = document.getElementById('loginBtn');
+ err.textContent="";
+ if(!uhid){ err.textContent="Please enter your UHID."; return; }
+ if(!/^\d{10}$/.test(mobile)){ err.textContent="Please enter a valid 10-digit mobile number."; return; }
+ btn.disabled=true; btn.textContent="Checking...";
+ try{
+  const [patientRes, billsRes] = await Promise.all([
+   fetch(`${BILLING_API}/api/patients/${encodeURIComponent(uhid)}`),
+   fetch(`${BILLING_API}/api/bills/by-patient/${encodeURIComponent(uhid)}`)
+  ]);
+  const patient = patientRes.ok ? await patientRes.json() : null;
+  const bills = billsRes.ok ? await billsRes.json() : [];
+  const matchedBill = bills.find(b => (b.phone||"").replace(/\D/g,"").slice(-10) === mobile);
+  if(!patient && !matchedBill){
+   err.textContent="No record found for this UHID. Please check and try again, or contact the clinic.";
+   btn.disabled=false; btn.textContent="Continue";
+   return;
+  }
+  if(!matchedBill){
+   err.textContent="Mobile number does not match our billing records for this UHID. Please contact the clinic if this seems wrong.";
+   btn.disabled=false; btn.textContent="Continue";
+   return;
+  }
+  STATE.uhid=uhid; STATE.mobile=mobile; STATE.patient=patient; STATE.bills=bills;
+  document.getElementById('welcome').textContent='Welcome, '+(matchedBill.name||patient?.form?.name||'Patient');
+  document.getElementById('showUhid').textContent='UHID: '+uhid;
+  document.getElementById('pn').textContent=matchedBill.name||patient?.form?.name||'-';
+  document.getElementById('pm').textContent=mobile;
+  document.getElementById('pas').textContent=(matchedBill.age||patient?.form?.age||'-')+' / '+(matchedBill.sex||patient?.form?.sex||'-');
+  document.getElementById('pu').textContent=uhid;
+  document.getElementById('login').classList.remove('active');
+  document.getElementById('portal').classList.add('active');
+  loadAll();
+ }catch(e){
+  err.textContent="Could not connect right now. Please try again in a moment.";
+ }finally{
+  btn.disabled=false; btn.textContent="Continue";
+ }
+}
+
+async function loadAll(){
+ loadAppointments();
+ loadTreatment();
+ loadPrescriptions();
+ loadBills();
+ loadXrays();
+}
+
+function esc(s){return String(s==null?'':s).replace(/</g,"&lt;");}
+
+async function loadAppointments(){
+ const list=document.getElementById('apptList');
+ const nextBox=document.getElementById('nextAppt');
+ try{
+  const res=await fetch(`/api/appointments/by-phone?phone=${STATE.mobile}`);
+  const appts=await res.json();
+  STATE.appts=appts;
+  document.getElementById('statUpcoming').textContent=appts.filter(a=>a.status!=='cancelled').length;
+  if(!appts.length){
+   list.innerHTML='<p class="mut">No appointment requests yet.</p>';
+   nextBox.innerHTML='<p class="mut">No upcoming appointment. Use "Book Appointment" above.</p>';
+   return;
+  }
+  list.innerHTML=appts.map(a=>`<div class="row"><span><b>${esc(a.service||'Consultation')}</b><br><span class="mut">${esc(a.pref_date||'-')} at ${esc(a.pref_time||'-')}</span></span><span class="pill ${a.status}">${esc(a.status)}</span></div>`).join('');
+  const upcoming=appts.find(a=>a.status!=='cancelled');
+  nextBox.innerHTML=upcoming?`<div class="row"><span><b>${esc(upcoming.service||'Consultation')}</b><br><span class="mut">${esc(upcoming.pref_date||'-')} at ${esc(upcoming.pref_time||'-')}</span></span><span class="pill ${upcoming.status}">${esc(upcoming.status)}</span></div>`:'<p class="mut">No upcoming appointment.</p>';
+ }catch(e){
+  list.innerHTML='<p class="mut">Could not load appointments.</p>';
+ }
+}
+
+function loadTreatment(){
+ const el=document.getElementById('treatmentList');
+ const visits=STATE.patient?.visits||[];
+ const items=STATE.patient?.items||[];
+ document.getElementById('statVisits').textContent=visits.length;
+ if(!visits.length && !items.length){el.innerHTML='<p class="mut">No treatment records yet.</p>';return;}
+ let html='';
+ if(items.length){
+  html+='<h3 style="font-size:14px;color:var(--n)">Procedures Done</h3>';
+  html+=items.map(i=>`<div class="row"><span>${esc(i.procedure)}</span><span class="mut">Qty: ${esc(i.no)}</span></div>`).join('');
+ }
+ if(visits.length){
+  html+='<h3 style="font-size:14px;color:var(--n);margin-top:14px">Visit History</h3>';
+  html+=visits.map(v=>`<div class="row"><span><b>${esc(v.date||'-')}</b><br><span class="mut">${esc(v.notes||'No notes')}</span></span>${v.next?`<span class="pill">Next: ${esc(v.next)}</span>`:''}</div>`).join('');
+ }
+ el.innerHTML=html;
+}
+
+function loadPrescriptions(){
+ const el=document.getElementById('medsList');
+ const meds=STATE.patient?.meds||[];
+ document.getElementById('statMeds').textContent=meds.length;
+ if(!meds.length){el.innerHTML='<p class="mut">No prescriptions on record.</p>';return;}
+ el.innerHTML=meds.map(m=>`<div class="row"><span><b>${esc(m.name)}</b><br><span class="mut">${esc(m.dose||'')} • ${esc(m.freq||'')} • ${esc(m.duration||'')}</span></span></div>`).join('');
+}
+
+function loadBills(){
+ const el=document.getElementById('billsList');
+ const bills=STATE.bills||[];
+ let totalBalance=0;
+ bills.forEach(b=>{
+  const paid=(b.payments||[]).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
+  const bal=Math.max(0,(parseFloat(b.total)||0)-paid);
+  totalBalance+=bal;
+ });
+ document.getElementById('statBalance').textContent='₹'+totalBalance.toFixed(0);
+ if(!bills.length){el.innerHTML='<p class="mut">No bills on record.</p>';return;}
+ el.innerHTML=bills.map(b=>{
+  const paid=(b.payments||[]).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
+  const bal=Math.max(0,(parseFloat(b.total)||0)-paid);
+  return `<div class="row"><span><b>Bill #${esc(b.no)}</b><br><span class="mut">${esc(b.date||'-')} • Total: ₹${esc(b.total)}</span></span><span class="pill ${bal<=0?'confirmed':'pending'}">${bal<=0?'PAID':'Due ₹'+bal.toFixed(0)}</span></div>`;
+ }).join('');
+}
+
+async function loadXrays(){
+ const el=document.getElementById('xrayGrid');
+ try{
+  const res=await fetch(`${BILLING_API}/api/xrays/${encodeURIComponent(STATE.uhid)}`);
+  const xrays=res.ok?await res.json():[];
+  STATE.xrays=xrays;
+  if(!xrays.length){el.innerHTML='<p class="mut">No X-rays on record.</p>';return;}
+  el.innerHTML=xrays.map(x=>`<img src="${x.data}" alt="X-Ray ${esc(x.filename||'')}" loading="lazy">`).join('');
+ }catch(e){
+  el.innerHTML='<p class="mut">Could not load X-rays.</p>';
+ }
+}
+
+function show(id){document.querySelectorAll('.content').forEach(x=>x.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('sel',x.dataset.id===id))}
+</script>
+</body></html>
