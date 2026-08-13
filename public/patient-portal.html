@@ -15,11 +15,9 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 .pill.pending{background:#fff3cd;color:#7a5b00}.pill.confirmed{background:#d4f4dd;color:#0f6b2e}.pill.cancelled{background:#fbdada;color:#a11c1c}
 .xray-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}.xray-grid img{width:100%;height:120px;object-fit:cover;border-radius:10px;box-shadow:0 4px 12px #073b4c14}
 .err{color:#c0392b;font-size:13px;margin-top:10px}
-.download-row{display:flex;justify-content:flex-end;gap:10px;margin:-4px 0 16px}
-.download-btn{background:var(--n);color:#fff;border:0;padding:10px 15px;border-radius:10px;font-weight:800;cursor:pointer}
-.download-btn:hover{background:var(--t)}
 @media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.hero{display:block}.wrap{padding:20px 14px}}@media(max-width:480px){.grid{grid-template-columns:1fr}.login{margin:3vh 14px;padding:25px}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="top"><div class="topin"><div class="brand">🦷 J.K. HOSPITAL DENTAL CARE CENTER<small>MY J.K. DENTAL • PATIENT PORTAL</small></div><a href="/" class="btn secondary">← Website</a></div></div>
@@ -55,9 +53,9 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 
 <div id="treatment" class="content" style="display:none"><div class="panel"><h2>Treatment History</h2><div id="treatmentList"><p class="mut">Loading...</p></div></div></div>
 
-<div id="prescriptions" class="content" style="display:none"><div class="panel"><h2>Prescriptions</h2><div class="download-row"><button class="download-btn" onclick="downloadRx()">⬇ Download Rx</button></div><div id="medsList"><p class="mut">Loading...</p></div></div></div>
+<div id="prescriptions" class="content" style="display:none"><div class="panel"><h2>Prescriptions</h2><div id="medsList"><p class="mut">Loading...</p></div><button id="downloadRxBtn" class="btn" style="margin-top:14px" onclick="downloadRxPDF()">⬇ Download Rx</button><div id="rxDownloadMsg" class="mut" style="margin-top:8px"></div></div></div>
 
-<div id="bills" class="content" style="display:none"><div class="panel"><h2>Bills & Payments</h2><div class="download-row"><button class="download-btn" onclick="downloadBills()">⬇ Download Bills</button></div><div id="billsList"><p class="mut">Loading...</p></div></div></div>
+<div id="bills" class="content" style="display:none"><div class="panel"><h2>Bills & Payments</h2><div id="billsList"><p class="mut">Loading...</p></div></div></div>
 
 <div id="reports" class="content" style="display:none"><div class="panel"><h2>X-Rays</h2><div id="xrayGrid" class="xray-grid"><p class="mut">Loading...</p></div></div></div>
 
@@ -202,56 +200,45 @@ async function loadXrays(){
  }
 }
 
+async function downloadRxPDF(){
+  const btn=document.getElementById('downloadRxBtn');
+  const msg=document.getElementById('rxDownloadMsg');
+  if(!STATE.patient){msg.textContent='Patient record is not loaded.';return;}
+  if(typeof html2pdf==='undefined'){msg.textContent='PDF engine could not be loaded. Please try again.';return;}
+  btn.disabled=true; btn.textContent='Preparing Rx PDF...'; msg.textContent='';
+  try{
+    const p=STATE.patient||{};
+    const form=p.form||{};
+    const items=Array.isArray(p.items)?p.items:[];
+    const meds=Array.isArray(p.meds)?p.meds:[];
+    const visits=Array.isArray(p.visits)?p.visits:[];
+    const xrays=Array.isArray(STATE.xrays)?STATE.xrays:[];
+    let master=[];
+    try{
+      const r=await fetch(`${BILLING_API}/api/procedures`);
+      if(r.ok){const d=await r.json();master=d.map(x=>({code:x.code,procedure:x.name,rate:x.rate}));}
+    }catch(e){}
+    const escRx=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const cats={'CGHS-P':'CGHS – Pensioner (Cashless)','CGHS-S':'CGHS – Serving (Paid)','PVT-JK':'Private (JK)'};
+    const clinicName='J. K. Hospital Dental Care Center';
+    const clinicAddr='38/53 D Bai Ka Bagh, Prayagraj —CMO Reg 3351/3881 9450595694 • jkhospitalalld@gmail.com';
+    const medRows=meds.map((m,i)=>`<tr><td style="padding:6px;border:1px solid #ddd;text-align:center">${i+1}</td><td style="padding:6px;border:1px solid #ddd">${escRx(m.name)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.dose)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.freq)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.duration)}</td></tr>`).join('');
+    const procRows=items.map(p=>`<tr><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(p.code)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(p.procedure)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:20px;height:10px;text-align:center;font-size:10px">${escRx(p.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:20px;height:10px;text-align:center;font-size:10px">${escRx(p.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:20px;height:10px;text-align:center;font-size:10px">${escRx(p.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:20px;height:10px;text-align:center;font-size:10px">${escRx(p.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(p.no)}</td></tr>`).join('');
+    const visitRows=visits.map(v=>{const proc=master.find(x=>x.code===v.code);return `<tr><td style="padding:6px;border:1px solid #ddd">${escRx(v.date)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(proc?proc.procedure:(v.procedure||v.code||''))}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:20px;height:10px;font-size:10px;text-align:center">${escRx(v.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:20px;height:10px;font-size:10px;text-align:center">${escRx(v.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:20px;height:10px;font-size:10px;text-align:center">${escRx(v.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:20px;height:10px;font-size:10px;text-align:center">${escRx(v.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd">${escRx(v.notes)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(v.next)}</td></tr>`}).join('');
+    const xrayHtml=xrays.length?`<h3 style="margin-top:18px">X-Ray Images</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${xrays.map(x=>`<img src="${x.data}" style="width:150px;height:150px;object-fit:cover;border:1px solid #ccc;border-radius:6px">`).join('')}</div>`:'';
+    const rxHtml=`<html><head><title>Rx - ${escRx(form.name||'Patient')}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.footer{margin-top:30px;color:#666;font-size:13px}</style></head><body><h2>${clinicName}</h2><div class="meta">${clinicAddr}</div><hr><div><strong>UHID:</strong> ${escRx(STATE.uhid)} &nbsp;&nbsp; <strong>Date:</strong> ${escRx(form.date||'')}</div><div><strong>Patient:</strong> ${escRx(form.name||'')} &nbsp; <strong>Age:</strong> ${escRx(form.age||'')} &nbsp; <strong>Sex:</strong> ${escRx(form.sex||'')} &nbsp; <strong>Category:</strong> ${escRx(cats[form.category]||form.category||'')}</div><div style="margin-top:8px"><strong>PMH:</strong> ${escRx(form.pmh||'---')}</div><div style="margin-top:8px"><strong>Chief Complaint/TEST:</strong> ${escRx(form.cc||'---')}</div><h3 style="margin-top:12px">Medicines</h3><table class="rx-table"><thead><tr><th style="width:6%">#</th><th>Medicine</th><th style="width:18%">Dose</th><th style="width:14%">Frequency</th><th style="width:14%">Duration</th></tr></thead><tbody>${medRows||'<tr><td colspan="5" style="padding:8px;text-align:center;color:#666">No medicines prescribed.</td></tr>'}</tbody></table><h3 style="margin-top:12px">Procedures</h3><table class="rx-table"><thead><tr><th style="width:20%">Code</th><th>Procedure</th><th style="width:20%">Boxes</th><th style="width:14%">Qty</th></tr></thead><tbody>${procRows||'<tr><td colspan="4" style="padding:8px;text-align:center;color:#666">No procedures added.</td></tr>'}</tbody></table><h3 style="margin-top:18px">Visit History</h3><table class="rx-table"><thead><tr><th style="width:16%">Date</th><th style="width:28%">Procedure</th><th style="width:18%">Tooth</th><th>Clinical Notes</th><th style="width:16%">Next Visit</th></tr></thead><tbody>${visitRows||'<tr><td colspan="5" style="text-align:center;color:#666">No Visit History</td></tr>'}</tbody></table>${xrayHtml}<div class="footer">Signature: ____________________ &nbsp;&nbsp; SIGN & STAMP</div></body></html>`;
+    const container=document.createElement('div');container.innerHTML=rxHtml;document.body.appendChild(container);
+    const safeName=String(form.name||'Patient').replace(/[^a-zA-Z0-9]/g,'_');
+    const safeUHID=String(STATE.uhid||'UHID').replace(/\//g,'-');
+    const dt=form.date||new Date().toISOString().slice(0,10);
+    const opt={margin:[10,10,10,10],filename:`${safeName}_${safeUHID}_${dt}.pdf`,image:{type:'jpeg',quality:1},html2canvas:{scale:1.5,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['avoid-all','css','legacy']}};
+    await html2pdf().set(opt).from(container).save();
+    container.remove();
+    msg.textContent='Rx PDF downloaded.';
+  }catch(e){console.error(e);msg.textContent='Could not generate Rx PDF. Please try again.';}
+  finally{btn.disabled=false;btn.textContent='⬇ Download Rx';}
+}
 
-function patientName(){
-  return STATE.patient?.form?.name || STATE.bills?.[0]?.name || 'Patient';
-}
-function openPrintDocument(title, bodyHtml){
-  const w=window.open('', '_blank', 'width=900,height=700');
-  if(!w){ alert('Please allow pop-ups for this website.'); return; }
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${String(title).replace(/[<>&"]/g,'')}</title>
-  <style>
-  *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#18323a;margin:0;padding:28px}
-  .head{text-align:center;border-bottom:2px solid #073b4c;padding-bottom:15px;margin-bottom:20px}
-  .head h1{margin:0;color:#073b4c;font-size:22px}.head p{margin:4px 0;font-size:12px}
-  .meta{display:grid;grid-template-columns:1fr 1fr;gap:7px 20px;margin-bottom:18px;font-size:13px}
-  table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #cfdde0;padding:9px;text-align:left;font-size:13px}
-  th{background:#e8f8f7;color:#073b4c}.right{text-align:right}.total{font-weight:800;font-size:15px}
-  .footer{margin-top:35px;font-size:11px;color:#64777d;text-align:center}
-  @media print{body{padding:12mm}}
-  </style></head><body>
-  <div class="head"><h1>J.K. HOSPITAL DENTAL CARE CENTER</h1>
-  <p>Exclusive Dental OPD Clinic • Prayagraj</p><p>${String(title).replace(/[<>&"]/g,'')}</p></div>
-  ${bodyHtml}
-  <div class="footer">Generated from My J.K. Dental Patient Portal • UHID: ${esc(STATE.uhid)}</div>
-  <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
-  </body></html>`);
-  w.document.close();
-}
-function downloadRx(){
-  const meds=STATE.patient?.meds||[];
-  if(!meds.length){alert('No prescription is available for this UHID.');return;}
-  const rows=meds.map((m,i)=>`<tr><td>${i+1}</td><td>${esc(m.name)}</td><td>${esc(m.dose||'-')}</td><td>${esc(m.freq||'-')}</td><td>${esc(m.duration||'-')}</td></tr>`).join('');
-  const body=`<div class="meta"><div><b>Patient:</b> ${esc(patientName())}</div><div><b>UHID:</b> ${esc(STATE.uhid)}</div><div><b>Mobile:</b> ${esc(STATE.mobile)}</div></div>
-  <table><thead><tr><th>#</th><th>Medicine</th><th>Dose</th><th>Frequency</th><th>Duration</th></tr></thead><tbody>${rows}</tbody></table>`;
-  openPrintDocument('Prescription / Rx',body);
-}
-function downloadBills(){
-  const bills=STATE.bills||[];
-  if(!bills.length){alert('No bills are available for this UHID.');return;}
-  const rows=bills.map(b=>{
-    const paid=(b.payments||[]).reduce((sum,p)=>sum+(parseFloat(p.amount)||0),0);
-    const total=parseFloat(b.total)||0; const due=Math.max(0,total-paid);
-    return `<tr><td>${esc(b.no||'-')}</td><td>${esc(b.date||'-')}</td><td class="right">₹${total.toFixed(2)}</td><td class="right">₹${paid.toFixed(2)}</td><td class="right">₹${due.toFixed(2)}</td></tr>`;
-  }).join('');
-  const grandTotal=bills.reduce((s,b)=>s+(parseFloat(b.total)||0),0);
-  const grandPaid=bills.reduce((s,b)=>s+(b.payments||[]).reduce((x,p)=>x+(parseFloat(p.amount)||0),0),0);
-  const grandDue=Math.max(0,grandTotal-grandPaid);
-  const body=`<div class="meta"><div><b>Patient:</b> ${esc(patientName())}</div><div><b>UHID:</b> ${esc(STATE.uhid)}</div><div><b>Mobile:</b> ${esc(STATE.mobile)}</div></div>
-  <table><thead><tr><th>Bill No.</th><th>Date</th><th>Total</th><th>Paid</th><th>Due</th></tr></thead><tbody>${rows}</tbody>
-  <tfoot><tr class="total"><td colspan="2">Grand Total</td><td class="right">₹${grandTotal.toFixed(2)}</td><td class="right">₹${grandPaid.toFixed(2)}</td><td class="right">₹${grandDue.toFixed(2)}</td></tr></tfoot></table>`;
-  openPrintDocument('Bills & Payment Summary',body);
-}
 function show(id){document.querySelectorAll('.content').forEach(x=>x.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('sel',x.dataset.id===id))}
 </script>
 </body></html>
