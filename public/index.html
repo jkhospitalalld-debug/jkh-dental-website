@@ -19,6 +19,9 @@ nav{display:flex;gap:22px;align-items:center;font-size:14px;font-weight:700}
 nav a:hover{color:var(--teal)}
 .btn{display:inline-block;padding:12px 20px;border-radius:30px;background:var(--teal);color:white;font-weight:800;border:0;cursor:pointer}
 .btn.alt{background:white;color:var(--navy);border:1px solid #d4e5e7}
+.portal-link{display:inline-flex;align-items:center;gap:6px;background:var(--teal);color:white!important;padding:8px 13px;border-radius:22px;font-weight:800;box-shadow:0 4px 12px rgba(11,143,143,.18)}
+.portal-link:hover{background:var(--navy);color:white!important}
+.portal-mobile{display:none;white-space:nowrap;padding:9px 13px;font-size:13px;border-radius:22px}
 .hero{background:linear-gradient(135deg,#e7f9f8 0%,#f9ffff 55%,#e5f2f7 100%);padding:80px 22px}
 .hero-inner{max-width:1180px;margin:auto;display:grid;grid-template-columns:1.1fr .9fr;gap:50px;align-items:center}
 .badge{display:inline-block;background:white;border:1px solid #cde8e7;padding:7px 13px;border-radius:20px;font-size:12px;font-weight:800;color:var(--teal)}
@@ -48,7 +51,7 @@ textarea{min-height:110px;resize:vertical}
 footer{background:#042c38;color:#c9d9dc;text-align:center;padding:24px}
 .float{position:fixed;right:18px;bottom:18px;background:#18a85b;color:white;padding:13px 18px;border-radius:30px;font-weight:800;box-shadow:0 8px 25px rgba(0,0,0,.2);z-index:20}
 @media(max-width:850px){
-nav{display:none}.hero{padding:55px 18px}.hero-inner,.about,.contact-grid{grid-template-columns:1fr}h1{font-size:40px}.cards{grid-template-columns:1fr}.section{padding:55px 18px}#casesGrid{grid-template-columns:1fr 1fr!important}
+nav{display:none}.portal-mobile{display:inline-block}.hero{padding:55px 18px}.hero-inner,.about,.contact-grid{grid-template-columns:1fr}h1{font-size:40px}.cards{grid-template-columns:1fr}.section{padding:55px 18px}#casesGrid{grid-template-columns:1fr 1fr!important}
 }
 .case-card{padding:0;overflow:hidden}
 .case-card img{width:100%;height:160px;object-fit:cover;display:block}
@@ -64,9 +67,9 @@ nav{display:none}.hero{padding:55px 18px}.hero-inner,.about,.contact-grid{grid-t
 <div>J.K. HOSPITAL DENTAL CARE CENTER<small>EXCLUSIVE DENTAL OPD CLINIC • PRAYAGRAJ</small></div>
 </a>
 <nav>
-<a href="#home">Home</a><a href="#about">About</a><a href="#services">Services</a><a href="#cases">Cases</a><a href="#appointment">Appointment</a><a href="#contact">Contact</a><a href="/patient-portal.html">My J.K. Dental</a>
+<a href="#home">Home</a><a href="#about">About</a><a href="#services">Services</a><a href="#cases">Cases</a><a href="#appointment">Appointment</a><a href="#contact">Contact</a><a class="portal-link" href="/patient-portal.html">👤 My J.K. Dental</a>
 </nav>
-<a class="btn" href="#appointment">Book Appointment</a>
+<a class="btn portal-mobile" href="/patient-portal.html">👤 My J.K. Dental</a><a class="btn" href="#appointment">Book Appointment</a>
 </div>
 </header>
 
@@ -180,6 +183,7 @@ nav{display:none}.hero{padding:55px 18px}.hero-inner,.about,.contact-grid{grid-t
 </div>
 <div class="contact-card">
 <h3>Quick Links</h3>
+<p><a href="/patient-portal.html" style="font-weight:800">👤 My J.K. Dental — Patient Portal</a></p>
 <p><a href="#appointment">→ Book an Appointment</a></p>
 <p><a href="#services">→ Dental Services</a></p>
 <p><a href="#about">→ About the Clinic</a></p>
