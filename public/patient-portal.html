@@ -15,6 +15,9 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 .pill.pending{background:#fff3cd;color:#7a5b00}.pill.confirmed{background:#d4f4dd;color:#0f6b2e}.pill.cancelled{background:#fbdada;color:#a11c1c}
 .xray-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}.xray-grid img{width:100%;height:120px;object-fit:cover;border-radius:10px;box-shadow:0 4px 12px #073b4c14}
 .err{color:#c0392b;font-size:13px;margin-top:10px}
+.download-row{display:flex;justify-content:flex-end;gap:10px;margin:-4px 0 16px}
+.download-btn{background:var(--n);color:#fff;border:0;padding:10px 15px;border-radius:10px;font-weight:800;cursor:pointer}
+.download-btn:hover{background:var(--t)}
 @media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.hero{display:block}.wrap{padding:20px 14px}}@media(max-width:480px){.grid{grid-template-columns:1fr}.login{margin:3vh 14px;padding:25px}}
 </style>
 </head>
@@ -52,9 +55,9 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 
 <div id="treatment" class="content" style="display:none"><div class="panel"><h2>Treatment History</h2><div id="treatmentList"><p class="mut">Loading...</p></div></div></div>
 
-<div id="prescriptions" class="content" style="display:none"><div class="panel"><h2>Prescriptions</h2><div id="medsList"><p class="mut">Loading...</p></div></div></div>
+<div id="prescriptions" class="content" style="display:none"><div class="panel"><h2>Prescriptions</h2><div class="download-row"><button class="download-btn" onclick="downloadRx()">⬇ Download Rx</button></div><div id="medsList"><p class="mut">Loading...</p></div></div></div>
 
-<div id="bills" class="content" style="display:none"><div class="panel"><h2>Bills & Payments</h2><div id="billsList"><p class="mut">Loading...</p></div></div></div>
+<div id="bills" class="content" style="display:none"><div class="panel"><h2>Bills & Payments</h2><div class="download-row"><button class="download-btn" onclick="downloadBills()">⬇ Download Bills</button></div><div id="billsList"><p class="mut">Loading...</p></div></div></div>
 
 <div id="reports" class="content" style="display:none"><div class="panel"><h2>X-Rays</h2><div id="xrayGrid" class="xray-grid"><p class="mut">Loading...</p></div></div></div>
 
@@ -199,6 +202,56 @@ async function loadXrays(){
  }
 }
 
+
+function patientName(){
+  return STATE.patient?.form?.name || STATE.bills?.[0]?.name || 'Patient';
+}
+function openPrintDocument(title, bodyHtml){
+  const w=window.open('', '_blank', 'width=900,height=700');
+  if(!w){ alert('Please allow pop-ups for this website.'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${String(title).replace(/[<>&"]/g,'')}</title>
+  <style>
+  *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#18323a;margin:0;padding:28px}
+  .head{text-align:center;border-bottom:2px solid #073b4c;padding-bottom:15px;margin-bottom:20px}
+  .head h1{margin:0;color:#073b4c;font-size:22px}.head p{margin:4px 0;font-size:12px}
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:7px 20px;margin-bottom:18px;font-size:13px}
+  table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #cfdde0;padding:9px;text-align:left;font-size:13px}
+  th{background:#e8f8f7;color:#073b4c}.right{text-align:right}.total{font-weight:800;font-size:15px}
+  .footer{margin-top:35px;font-size:11px;color:#64777d;text-align:center}
+  @media print{body{padding:12mm}}
+  </style></head><body>
+  <div class="head"><h1>J.K. HOSPITAL DENTAL CARE CENTER</h1>
+  <p>Exclusive Dental OPD Clinic • Prayagraj</p><p>${String(title).replace(/[<>&"]/g,'')}</p></div>
+  ${bodyHtml}
+  <div class="footer">Generated from My J.K. Dental Patient Portal • UHID: ${esc(STATE.uhid)}</div>
+  <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
+  </body></html>`);
+  w.document.close();
+}
+function downloadRx(){
+  const meds=STATE.patient?.meds||[];
+  if(!meds.length){alert('No prescription is available for this UHID.');return;}
+  const rows=meds.map((m,i)=>`<tr><td>${i+1}</td><td>${esc(m.name)}</td><td>${esc(m.dose||'-')}</td><td>${esc(m.freq||'-')}</td><td>${esc(m.duration||'-')}</td></tr>`).join('');
+  const body=`<div class="meta"><div><b>Patient:</b> ${esc(patientName())}</div><div><b>UHID:</b> ${esc(STATE.uhid)}</div><div><b>Mobile:</b> ${esc(STATE.mobile)}</div></div>
+  <table><thead><tr><th>#</th><th>Medicine</th><th>Dose</th><th>Frequency</th><th>Duration</th></tr></thead><tbody>${rows}</tbody></table>`;
+  openPrintDocument('Prescription / Rx',body);
+}
+function downloadBills(){
+  const bills=STATE.bills||[];
+  if(!bills.length){alert('No bills are available for this UHID.');return;}
+  const rows=bills.map(b=>{
+    const paid=(b.payments||[]).reduce((sum,p)=>sum+(parseFloat(p.amount)||0),0);
+    const total=parseFloat(b.total)||0; const due=Math.max(0,total-paid);
+    return `<tr><td>${esc(b.no||'-')}</td><td>${esc(b.date||'-')}</td><td class="right">₹${total.toFixed(2)}</td><td class="right">₹${paid.toFixed(2)}</td><td class="right">₹${due.toFixed(2)}</td></tr>`;
+  }).join('');
+  const grandTotal=bills.reduce((s,b)=>s+(parseFloat(b.total)||0),0);
+  const grandPaid=bills.reduce((s,b)=>s+(b.payments||[]).reduce((x,p)=>x+(parseFloat(p.amount)||0),0),0);
+  const grandDue=Math.max(0,grandTotal-grandPaid);
+  const body=`<div class="meta"><div><b>Patient:</b> ${esc(patientName())}</div><div><b>UHID:</b> ${esc(STATE.uhid)}</div><div><b>Mobile:</b> ${esc(STATE.mobile)}</div></div>
+  <table><thead><tr><th>Bill No.</th><th>Date</th><th>Total</th><th>Paid</th><th>Due</th></tr></thead><tbody>${rows}</tbody>
+  <tfoot><tr class="total"><td colspan="2">Grand Total</td><td class="right">₹${grandTotal.toFixed(2)}</td><td class="right">₹${grandPaid.toFixed(2)}</td><td class="right">₹${grandDue.toFixed(2)}</td></tr></tfoot></table>`;
+  openPrintDocument('Bills & Payment Summary',body);
+}
 function show(id){document.querySelectorAll('.content').forEach(x=>x.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('sel',x.dataset.id===id))}
 </script>
 </body></html>
