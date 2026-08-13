@@ -55,6 +55,16 @@ export default {
       return json(results.map(r => r.pref_time).filter(Boolean));
     }
 
+    // Public: patient looks up their own appointments by phone
+    if (path === "/api/appointments/by-phone" && request.method === "GET") {
+      const phone = (url.searchParams.get("phone") || "").replace(/\D/g, "").slice(-10);
+      if (!phone) return json({ error: "phone required" }, 400);
+      const { results } = await env.DB.prepare(
+        "SELECT id, service, pref_date, pref_time, status, created_at FROM appointments WHERE phone LIKE ? ORDER BY created_at DESC"
+      ).bind("%" + phone).all();
+      return json(results);
+    }
+
     // Public: submit a new appointment request
     if (path === "/api/appointments" && request.method === "POST") {
       const body = await request.json();
