@@ -55,7 +55,14 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 
 <div id="prescriptions" class="content" style="display:none"><div class="panel"><h2>Prescriptions</h2><div id="medsList"><p class="mut">Loading...</p></div><button id="downloadRxBtn" class="btn" style="margin-top:14px" onclick="downloadRxPDF()">⬇ Download Rx</button><div id="rxDownloadMsg" class="mut" style="margin-top:8px"></div></div></div>
 
-<div id="bills" class="content" style="display:none"><div class="panel"><h2>Bills & Payments</h2><div id="billsList"><p class="mut">Loading...</p></div></div></div>
+<div id="bills" class="content" style="display:none"><div class="panel"><h2>Bills & Payments</h2>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px">
+<label style="font-size:13px;color:var(--mut);display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" id="selectAllBills" onchange="toggleAllBills(this)" style="width:auto"> Select All</label>
+<button class="btn" id="downloadSelectedBtn" onclick="downloadSelectedBills()">⬇ Download Selected</button>
+</div>
+<div id="billsList"><p class="mut">Loading...</p></div>
+<div id="billsDownloadMsg" class="mut" style="margin-top:8px"></div>
+</div></div>
 
 <div id="reports" class="content" style="display:none"><div class="panel"><h2>X-Rays</h2><div id="xrayGrid" class="xray-grid"><p class="mut">Loading...</p></div></div></div>
 
@@ -180,11 +187,87 @@ function loadBills(){
  });
  document.getElementById('statBalance').textContent='₹'+totalBalance.toFixed(0);
  if(!bills.length){el.innerHTML='<p class="mut">No bills on record.</p>';return;}
- el.innerHTML=bills.map(b=>{
+ el.innerHTML=bills.map((b,i)=>{
   const paid=(b.payments||[]).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
   const bal=Math.max(0,(parseFloat(b.total)||0)-paid);
-  return `<div class="row"><span><b>Bill #${esc(b.no)}</b><br><span class="mut">${esc(b.date||'-')} • Total: ₹${esc(b.total)}</span></span><span class="pill ${bal<=0?'confirmed':'pending'}">${bal<=0?'PAID':'Due ₹'+bal.toFixed(0)}</span></div>`;
+  return `<div class="row">
+   <span style="display:flex;align-items:flex-start;gap:10px">
+    <input type="checkbox" class="billCheck" data-idx="${i}" style="width:auto;margin-top:5px">
+    <span><b>Bill #${esc(b.no)}</b><br><span class="mut">${esc(b.date||'-')} • Total: ₹${esc(b.total)}</span></span>
+   </span>
+   <span style="display:flex;align-items:center;gap:10px">
+    <span class="pill ${bal<=0?'confirmed':'pending'}">${bal<=0?'PAID':'Due ₹'+bal.toFixed(0)}</span>
+    <button class="btn secondary" style="padding:7px 12px;font-size:12px;width:auto" onclick="downloadSingleBill(${i})">⬇</button>
+   </span>
+  </div>`;
  }).join('');
+}
+
+function toggleAllBills(cb){
+ document.querySelectorAll('.billCheck').forEach(c=>c.checked=cb.checked);
+}
+
+function billReceiptHtml(b){
+ const escB=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ const clinicName='J. K. Hospital Dental Care Center';
+ const clinicAddr='38/53 D Bai Ka Bagh, Prayagraj —CMO Reg 3351/3881 9450595694 • jkhospitalalld@gmail.com';
+ const paid=(b.payments||[]).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
+ const bal=Math.max(0,(parseFloat(b.total)||0)-paid);
+ const lineRows=(b.lines||[]).map((l,i)=>`<tr><td style="padding:6px;border:1px solid #ddd;text-align:center">${i+1}</td><td style="padding:6px;border:1px solid #ddd">${escB(l.label)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escB(l.qty)}</td><td style="padding:6px;border:1px solid #ddd;text-align:right">₹${escB(l.rate)}</td><td style="padding:6px;border:1px solid #ddd;text-align:right">₹${escB(l.total)}</td></tr>`).join('');
+ const payRows=(b.payments||[]).map(p=>`<tr><td style="padding:6px;border:1px solid #ddd">${escB(p.date||'-')}</td><td style="padding:6px;border:1px solid #ddd">${escB(p.mode||'-')}</td><td style="padding:6px;border:1px solid #ddd;text-align:right">₹${escB(p.amount)}</td></tr>`).join('');
+ return `<html><head><title>Bill ${escB(b.no)}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.total-row{font-weight:bold;background:#f5fafa}.footer{margin-top:30px;color:#666;font-size:13px}</style></head><body>
+ <h2>${clinicName}</h2><div class="meta">${clinicAddr}</div><hr>
+ <div><strong>Bill No:</strong> ${escB(b.no)} &nbsp;&nbsp; <strong>Date:</strong> ${escB(b.date||'')}</div>
+ <div><strong>Patient:</strong> ${escB(b.name||'')} &nbsp; <strong>Age:</strong> ${escB(b.age||'')} &nbsp; <strong>Sex:</strong> ${escB(b.sex||'')} &nbsp; <strong>UHID:</strong> ${escB(b.patientUHID||'')}</div>
+ <h3 style="margin-top:14px">Procedures / Items</h3>
+ <table class="rx-table"><thead><tr><th style="width:6%">#</th><th>Description</th><th style="width:10%">Qty</th><th style="width:16%">Rate</th><th style="width:16%">Total</th></tr></thead>
+ <tbody>${lineRows||'<tr><td colspan="5" style="text-align:center;color:#666">No items.</td></tr>'}</tbody></table>
+ <h3 style="margin-top:14px">Payments Received</h3>
+ <table class="rx-table"><thead><tr><th>Date</th><th>Mode</th><th style="text-align:right">Amount</th></tr></thead>
+ <tbody>${payRows||'<tr><td colspan="3" style="text-align:center;color:#666">No payments recorded.</td></tr>'}
+ <tr class="total-row"><td colspan="2">Grand Total</td><td style="text-align:right">₹${escB(b.total)}</td></tr>
+ <tr class="total-row"><td colspan="2">Paid</td><td style="text-align:right">₹${paid.toFixed(2)}</td></tr>
+ <tr class="total-row"><td colspan="2">Balance Due</td><td style="text-align:right">${bal<=0.004?'PAID IN FULL':'₹'+bal.toFixed(2)}</td></tr>
+ </tbody></table>
+ <div class="footer">Signature: ____________________ &nbsp;&nbsp; SIGN & STAMP</div>
+ </body></html>`;
+}
+
+async function generateBillPDF(b){
+ const container=document.createElement('div');
+ container.innerHTML=billReceiptHtml(b);
+ document.body.appendChild(container);
+ const safeUHID=String(STATE.uhid||'UHID').replace(/\//g,'-');
+ const opt={margin:[10,10,10,10],filename:`Bill_${b.no}_${safeUHID}.pdf`,image:{type:'jpeg',quality:1},html2canvas:{scale:1.5,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['avoid-all','css','legacy']}};
+ await html2pdf().set(opt).from(container).save();
+ container.remove();
+}
+
+async function downloadSingleBill(idx){
+ const msg=document.getElementById('billsDownloadMsg');
+ if(typeof html2pdf==='undefined'){msg.textContent='PDF engine could not be loaded. Please try again.';return;}
+ const bill=STATE.bills[idx];
+ msg.textContent='Preparing bill PDF...';
+ try{
+  await generateBillPDF(bill);
+  msg.textContent='Bill downloaded.';
+ }catch(e){console.error(e);msg.textContent='Could not generate bill PDF.';}
+}
+
+async function downloadSelectedBills(){
+ const msg=document.getElementById('billsDownloadMsg');
+ const btn=document.getElementById('downloadSelectedBtn');
+ if(typeof html2pdf==='undefined'){msg.textContent='PDF engine could not be loaded. Please try again.';return;}
+ const checked=[...document.querySelectorAll('.billCheck:checked')].map(c=>parseInt(c.dataset.idx));
+ if(!checked.length){msg.textContent='Please select at least one bill.';return;}
+ btn.disabled=true; btn.textContent='Preparing...'; msg.textContent='';
+ try{
+  for(const idx of checked){
+   await generateBillPDF(STATE.bills[idx]);
+  }
+  msg.textContent=`${checked.length} bill(s) downloaded.`;
+ }catch(e){console.error(e);msg.textContent='Could not generate one or more bill PDFs.';}
+ finally{btn.disabled=false;btn.textContent='⬇ Download Selected';}
 }
 
 async function loadXrays(){
