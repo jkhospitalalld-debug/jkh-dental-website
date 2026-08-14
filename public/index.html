@@ -50,8 +50,24 @@ input,textarea,select{width:100%;padding:13px 14px;border-radius:10px;border:1px
 textarea{min-height:110px;resize:vertical}
 footer{background:#042c38;color:#c9d9dc;text-align:center;padding:24px}
 .float{position:fixed;right:18px;bottom:18px;background:#18a85b;color:white;padding:13px 18px;border-radius:30px;font-weight:800;box-shadow:0 8px 25px rgba(0,0,0,.2);z-index:20}
+.hamburger{display:none;flex-direction:column;gap:5px;background:none;border:0;cursor:pointer;padding:6px}
+.hamburger span{width:26px;height:3px;background:var(--navy);border-radius:3px}
 @media(max-width:850px){
-nav{display:none}.portal-mobile{display:inline-block}.hero{padding:55px 18px}.hero-inner,.about,.contact-grid{grid-template-columns:1fr}h1{font-size:40px}.cards{grid-template-columns:1fr}.section{padding:55px 18px}#casesGrid{grid-template-columns:1fr 1fr!important}
+nav{display:none;position:absolute;top:100%;left:0;right:0;background:white;flex-direction:column;align-items:flex-start;gap:0;padding:10px 22px;max-height:calc(100vh - 60px);overflow-y:auto;z-index:30;box-shadow:0 12px 20px rgba(0,0,0,.08)}
+nav.open{display:flex}
+nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
+.hamburger{display:flex}
+.portal-mobile{display:none}
+.nav{padding:12px 14px;gap:10px}
+.brand{gap:8px;font-size:13px}
+.brand small{font-size:9px}
+.logo{width:38px;height:38px;font-size:18px}
+.btn{padding:10px 14px;font-size:13px}
+.hero{padding:55px 18px}
+.hero-inner,.about,.contact-grid{grid-template-columns:1fr}h1{font-size:40px}.cards{grid-template-columns:1fr}.section{padding:55px 18px}#casesGrid{grid-template-columns:1fr 1fr!important}
+}
+@media(max-width:400px){
+.nav .btn{padding:9px 11px;font-size:12px}
 }
 .case-card{padding:0;overflow:hidden}
 .case-card img{width:100%;height:160px;object-fit:cover;display:block}
@@ -66,10 +82,11 @@ nav{display:none}.portal-mobile{display:inline-block}.hero{padding:55px 18px}.he
 <div class="logo"><img src="assets/logo.png" alt="J.K. Hospital Dental Care Center Logo" style="width:100%;height:100%;object-fit:contain;border-radius:50%"></div>
 <div>J.K. HOSPITAL DENTAL CARE CENTER<small>EXCLUSIVE DENTAL OPD CLINIC • PRAYAGRAJ</small></div>
 </a>
-<nav>
+<nav id="mainNav">
 <a href="#home">Home</a><a href="#about">About</a><a href="#services">Services</a><a href="#cases">Cases</a><a href="#appointment">Appointment</a><a href="#contact">Contact</a><a class="portal-link" href="/patient-portal.html">👤 My J.K. Dental</a>
 </nav>
 <a class="btn portal-mobile" href="/patient-portal.html">👤 My J.K. Dental</a><a class="btn" href="#appointment">Book Appointment</a>
+<button class="hamburger" id="hamburgerBtn" onclick="toggleNav()" aria-label="Menu"><span></span><span></span><span></span></button>
 </div>
 </header>
 
@@ -204,6 +221,13 @@ nav{display:none}.portal-mobile{display:inline-block}.hero{padding:55px 18px}.he
 </footer>
 
 <script>
+function toggleNav(){
+ document.getElementById("mainNav").classList.toggle("open");
+}
+document.querySelectorAll("#mainNav a").forEach(a=>{
+ a.addEventListener("click",()=>document.getElementById("mainNav").classList.remove("open"));
+});
+
 document.getElementById("year").textContent=new Date().getFullYear();
 async function loadCases(){
  const grid=document.getElementById("casesGrid");
