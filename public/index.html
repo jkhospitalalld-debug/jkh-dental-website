@@ -270,7 +270,7 @@
 #billSection .modal-body{overflow:auto;padding:0;}
 #billSection .regrow{display:flex;align-items:flex-start;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line);}
 #billSection .regrow:hover{background:var(--paper);}
-#billSection .regrow .rno{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--teal-dark);font-size:11.5px;line-height:1.35;width:100px;flex:none;padding-top:1px;overflow-wrap:anywhere;word-break:break-all;overflow:hidden;}
+#billSection .regrow .rno{display:block;font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--teal-dark);font-size:11.5px;margin-bottom:2px;}
 #billSection .regrow .rname{flex:1;font-size:14px;min-width:0;}
 #billSection .regrow .rname small{display:block;color:var(--ink-faint);font-size:11.5px;}
 #billSection .regrow .ramt{font-family:'IBM Plex Mono',monospace;font-size:13.5px;color:var(--ink-soft);width:90px;text-align:right;flex:none;padding-top:1px;}
@@ -2895,8 +2895,8 @@ function renderRegister(){
     if(!filtered.length){ body.innerHTML=`<div class="empty">${trash.length? 'No trashed bills match your search.' : 'Trash is empty. Deleted bills show up here and can be restored any time.'}</div>`; return; }
     body.innerHTML=filtered.map(b=>`
       <div class="regrow">
-        <span class="rno">${b.no}</span>
         <span class="rname">
+          <span class="rno">${b.no}</span>
           ${b.name||'(no name)'}<small>Deleted ${b.deletedAt? new Date(b.deletedAt).toLocaleString():''}</small>
         </span>
         <span class="ramt">₹${b.total||'0.00'}</span>
@@ -2915,8 +2915,8 @@ function renderRegister(){
     const stBg = st.label==='Paid' ? '#dcfce7' : st.label==='Partial' ? '#fef3c7' : st.label==='Unpaid' ? '#fee2e2' : 'transparent';
     return `
     <div class="regrow">
-      <span class="rno">${b.no}</span>
       <span class="rname" onclick="loadBill('${b.no}')" style="cursor:pointer">
+        <span class="rno">${b.no}</span>
         ${b.name||'(no name)'}<small>${b.date||''} ${b.phone? '· '+b.phone:''}</small>
       </span>
       <span class="ramt">₹${b.total||'0.00'}${st.label?` <span style="font-size:11px;padding:2px 8px;border-radius:999px;background:${stBg};color:${stColor};font-weight:700">${st.label}</span>`:''}</span>
@@ -3428,8 +3428,7 @@ async function renderDailyReport(){
   }
   body.innerHTML = rows.map(r => `
     <div class="regrow">
-      <span class="rno">${esc(r.billNo)}</span>
-      <span class="rname">${esc(r.name)} <small style="color:${r.mode==='DISCOUNT'?'#b45309':'inherit'};font-weight:700">${esc(r.mode)}</small>${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
+      <span class="rname"><span class="rno">${esc(r.billNo)}</span>${esc(r.name)} <small style="color:${r.mode==='DISCOUNT'?'#b45309':'inherit'};font-weight:700">${esc(r.mode)}</small>${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
       <span class="ramt"${r.mode==='DISCOUNT' ? ' style="color:#b45309"' : ''}>₹${r.amount.toFixed(2)}</span>
     </div>`).join('');
 }
