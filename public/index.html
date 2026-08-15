@@ -281,5 +281,72 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
+
+<!-- Install App button -->
+<style>
+#installAppBtn{
+  position:fixed;bottom:20px;right:20px;z-index:999;
+  display:none;align-items:center;gap:8px;
+  background:var(--navy,#073b4c);color:#fff;
+  padding:12px 18px;border-radius:30px;border:0;
+  font-weight:800;font-size:14px;cursor:pointer;
+  box-shadow:0 8px 22px rgba(7,59,76,.35);
+  font-family:Arial,Helvetica,sans-serif;
+}
+#installAppBtn:hover{background:var(--teal,#0b8f8f)}
+#iosInstallTip{
+  position:fixed;bottom:0;left:0;right:0;z-index:999;
+  display:none;background:#fff;padding:16px 20px;
+  box-shadow:0 -6px 20px rgba(0,0,0,.15);
+  font-family:Arial,Helvetica,sans-serif;font-size:14px;
+  color:#18323a;border-top:3px solid var(--teal,#0b8f8f);
+}
+#iosInstallTip button{
+  float:right;background:none;border:0;font-size:18px;
+  color:#60747b;cursor:pointer;line-height:1;
+}
+</style>
+
+<button id="installAppBtn">📱 Install App</button>
+<div id="iosInstallTip">
+  <button onclick="document.getElementById('iosInstallTip').style.display='none'">✕</button>
+  <strong>Install this app:</strong> Tap the Share icon <b>⬆️</b> in Safari, then choose
+  <b>"Add to Home Screen"</b>.
+</div>
+
+<script>
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById("installAppBtn");
+const iosTip = document.getElementById("iosInstallTip");
+
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isInStandaloneMode =
+  window.matchMedia("(display-mode: standalone)").matches ||
+  window.navigator.standalone === true;
+
+if (!isInStandaloneMode) {
+  if (isIos) {
+    iosTip.style.display = "block";
+  } else {
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      installBtn.style.display = "inline-flex";
+    });
+
+    installBtn.addEventListener("click", async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      installBtn.style.display = "none";
+    });
+
+    window.addEventListener("appinstalled", () => {
+      installBtn.style.display = "none";
+    });
+  }
+}
+</script>
 </body>
 </html>
