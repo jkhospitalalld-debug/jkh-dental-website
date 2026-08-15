@@ -45,6 +45,45 @@ export default {
       return json({ ok: true });
     }
 
+    // Public: list videos
+    if (path === "/api/videos" && request.method === "GET") {
+      const { results } = await env.DB.prepare(
+        "SELECT id, youtube_id, title FROM videos ORDER BY created_at DESC"
+      ).all();
+      return json(results);
+    }
+
+    // Admin: list videos
+    if (path === "/api/admin/videos" && request.method === "GET") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const { results } = await env.DB.prepare(
+        "SELECT id, youtube_id, title FROM videos ORDER BY created_at DESC"
+      ).all();
+      return json(results);
+    }
+
+    // Admin: add video
+    if (path === "/api/admin/videos" && request.method === "POST") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const body = await request.json();
+      if (!body.youtube_id) return json({ error: "youtube_id required" }, 400);
+      await env.DB.prepare(
+        "INSERT INTO videos (youtube_id, title, created_at) VALUES (?, ?, ?)"
+      ).bind(body.youtube_id, body.title || "", Date.now()).run();
+      return json({ ok: true });
+    }
+
+    // Admin: delete video
+    const videoMatch = path.match(/^\/api\/admin\/videos\/(\d+)$/);
+    if (videoMatch && request.method === "DELETE") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      await env.DB.prepare("DELETE FROM videos WHERE id = ?").bind(videoMatch[1]).run();
+      return json({ ok: true });
+    }
+
     // Public: check booked time slots for a date (no personal info exposed)
     if (path === "/api/appointments/by-date" && request.method === "GET") {
       const date = url.searchParams.get("date");
