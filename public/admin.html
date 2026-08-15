@@ -54,6 +54,7 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 <div class="box" style="display:flex;gap:10px;padding:14px">
 <button id="tabCasesBtn" onclick="showTab('cases')" style="margin:0">Case Photos</button>
 <button id="tabApptBtn" onclick="showTab('appt')" class="secondary" style="margin:0">Appointments</button>
+<button id="tabVideosBtn" onclick="showTab('videos')" class="secondary" style="margin:0">Videos</button>
 </div>
 
 <div id="tabCases">
@@ -76,6 +77,21 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 <div class="box">
 <label>Appointment Requests</label>
 <div id="apptList"><p style="color:var(--muted)">Loading...</p></div>
+</div>
+</div>
+
+<div id="tabVideos" style="display:none">
+<div class="box">
+<label for="videoUrl">YouTube Video Link</label>
+<input id="videoUrl" type="text" placeholder="Paste YouTube video URL here">
+<label for="videoTitle" style="margin-top:12px">Title (optional)</label>
+<input id="videoTitle" type="text" placeholder="e.g. How to brush teeth correctly">
+<button onclick="addVideo()">Add Video</button>
+<p id="videoMsg"></p>
+</div>
+<div class="box">
+<label>Existing Videos</label>
+<div id="videosList"><p style="color:var(--muted)">Loading...</p></div>
 </div>
 </div>
 
@@ -186,9 +202,61 @@ async function del(id){
 function showTab(tab){
  document.getElementById("tabCases").style.display=tab==="cases"?"block":"none";
  document.getElementById("tabAppt").style.display=tab==="appt"?"block":"none";
+ document.getElementById("tabVideos").style.display=tab==="videos"?"block":"none";
  document.getElementById("tabCasesBtn").className=tab==="cases"?"":"secondary";
  document.getElementById("tabApptBtn").className=tab==="appt"?"":"secondary";
+ document.getElementById("tabVideosBtn").className=tab==="videos"?"":"secondary";
  if(tab==="appt")loadAppointments();
+ if(tab==="videos")loadVideos();
+}
+
+function extractYouTubeId(url){
+ const patterns=[
+  /(?:youtube\.com\/watch\?v=)([^&\s]+)/,
+  /(?:youtu\.be\/)([^?&\s]+)/,
+  /(?:youtube\.com\/embed\/)([^?&\s]+)/,
+  /(?:youtube\.com\/shorts\/)([^?&\s]+)/
+ ];
+ for(const p of patterns){const m=url.match(p); if(m) return m[1];}
+ if(/^[\w-]{11}$/.test(url.trim())) return url.trim();
+ return null;
+}
+
+async function loadVideos(){
+ const list=document.getElementById("videosList");
+ list.innerHTML="Loading...";
+ const res=await fetch("/api/admin/videos",{headers:{"Authorization":"Bearer "+TOKEN}});
+ const data=await res.json();
+ if(!data.length){list.innerHTML='<p style="color:var(--muted)">No videos added yet.</p>';return;}
+ list.innerHTML=data.map(v=>`<div class="appt-card"><h4>${(v.title||'Untitled').replace(/</g,'&lt;')}</h4><p style="word-break:break-all;color:var(--muted)">youtube.com/watch?v=${v.youtube_id}</p><div class="appt-actions"><button class="danger" onclick="delVideo(${v.id})">Delete</button></div></div>`).join("");
+}
+
+async function addVideo(){
+ const url=document.getElementById("videoUrl").value.trim();
+ const title=document.getElementById("videoTitle").value.trim();
+ const msg=document.getElementById("videoMsg");
+ const youtube_id=extractYouTubeId(url);
+ if(!youtube_id){msg.style.color="#d64545";msg.textContent="Could not read a valid YouTube link. Please check and try again.";return;}
+ msg.style.color="var(--muted)";msg.textContent="Adding...";
+ try{
+  const res=await fetch("/api/admin/videos",{
+   method:"POST",
+   headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},
+   body:JSON.stringify({youtube_id,title})
+  });
+  if(!res.ok)throw new Error("Failed");
+  msg.style.color="#18a85b";msg.textContent="Video added.";
+  document.getElementById("videoUrl").value="";document.getElementById("videoTitle").value="";
+  loadVideos();
+ }catch(e){
+  msg.style.color="#d64545";msg.textContent="Failed to add video.";
+ }
+}
+
+async function delVideo(id){
+ if(!confirm("Remove this video?"))return;
+ await fetch("/api/admin/videos/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+TOKEN}});
+ loadVideos();
 }
 
 async function loadAppointments(){
