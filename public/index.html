@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="J.K. Hospital Dental Care Center — Exclusive Dental OPD Clinic, Prayagraj. Comprehensive dental care with modern digital diagnostics.">
 <title>J.K. Hospital Dental Care Center | Prayagraj</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#073b4c">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
 :root{--navy:#073b4c;--teal:#0b8f8f;--cyan:#dff7f6;--white:#fff;--ink:#18323a;--muted:#60747b;--bg:#f7fbfb;--shadow:0 12px 35px rgba(7,59,76,.10)}
 *{box-sizing:border-box;scroll-behavior:smooth}
@@ -268,6 +272,13 @@ async function sendAppointment(e){
  }finally{
   btn.disabled=false;btn.textContent="Book Appointment";
  }
+}
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
 }
 </script>
 </body>
