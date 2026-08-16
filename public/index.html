@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="J.K. Hospital Dental Care Center — Exclusive Dental OPD Clinic, Prayagraj. Comprehensive dental care with modern digital diagnostics.">
 <title>J.K. Hospital Dental Care Center | Prayagraj</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#073b4c">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
 :root{--navy:#073b4c;--teal:#0b8f8f;--cyan:#dff7f6;--white:#fff;--ink:#18323a;--muted:#60747b;--bg:#f7fbfb;--shadow:0 12px 35px rgba(7,59,76,.10)}
 *{box-sizing:border-box;scroll-behavior:smooth}
@@ -321,6 +325,86 @@ async function sendAppointment(e){
  }finally{
   btn.disabled=false;btn.textContent="Book Appointment";
  }
+}
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+</script>
+
+<!-- Install App button -->
+<style>
+#installAppBtn{
+  position:fixed;bottom:20px;right:20px;z-index:999;
+  display:none;align-items:center;gap:8px;
+  background:var(--navy,#073b4c);color:#fff;
+  padding:12px 18px;border-radius:30px;border:0;
+  font-weight:800;font-size:14px;cursor:pointer;
+  box-shadow:0 8px 22px rgba(7,59,76,.35);
+  font-family:Arial,Helvetica,sans-serif;
+}
+#installAppBtn:hover{background:var(--teal,#0b8f8f)}
+#iosInstallTip{
+  position:fixed;bottom:0;left:0;right:0;z-index:999;
+  display:none;background:#fff;padding:16px 20px;
+  box-shadow:0 -6px 20px rgba(0,0,0,.15);
+  font-family:Arial,Helvetica,sans-serif;font-size:14px;
+  color:#18323a;border-top:3px solid var(--teal,#0b8f8f);
+}
+#iosInstallTip button{
+  float:right;background:none;border:0;font-size:18px;
+  color:#60747b;cursor:pointer;line-height:1;
+}
+</style>
+
+<button id="installAppBtn">📱 Download the JKHDental App</button>
+<div id="iosInstallTip">
+  <button onclick="document.getElementById('iosInstallTip').style.display='none'">✕</button>
+  <strong>Install this app:</strong> Tap the Share icon <b>⬆️</b> in Safari, then choose
+  <b>"Add to Home Screen"</b>.
+</div>
+
+<script>
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById("installAppBtn");
+const iosTip = document.getElementById("iosInstallTip");
+
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isInStandaloneMode =
+  window.matchMedia("(display-mode: standalone)").matches ||
+  window.navigator.standalone === true;
+
+if (!isInStandaloneMode) {
+  if (isIos) {
+    iosTip.style.display = "block";
+  } else {
+    installBtn.style.display = "inline-flex";
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+    });
+
+    installBtn.addEventListener("click", async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        installBtn.style.display = "none";
+      } else {
+        alert(
+          'Is device par auto-install available nahi hai.\n\nManually install karein:\nBrowser ke top-right ⋮ (3-dot) menu par tap karein, phir "Install app" ya "Add to Home screen" chunein.'
+        );
+      }
+    });
+
+    window.addEventListener("appinstalled", () => {
+      installBtn.style.display = "none";
+    });
+  }
 }
 </script>
 </body>
