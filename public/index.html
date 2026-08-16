@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="J.K. Hospital Dental Care Center — Exclusive Dental OPD Clinic, Prayagraj. Comprehensive dental care with modern digital diagnostics.">
 <title>J.K. Hospital Dental Care Center | Prayagraj</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#073b4c">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
 :root{--navy:#073b4c;--teal:#0b8f8f;--cyan:#dff7f6;--white:#fff;--ink:#18323a;--muted:#60747b;--bg:#f7fbfb;--shadow:0 12px 35px rgba(7,59,76,.10)}
 *{box-sizing:border-box;scroll-behavior:smooth}
@@ -50,24 +54,8 @@ input,textarea,select{width:100%;padding:13px 14px;border-radius:10px;border:1px
 textarea{min-height:110px;resize:vertical}
 footer{background:#042c38;color:#c9d9dc;text-align:center;padding:24px}
 .float{position:fixed;right:18px;bottom:18px;background:#18a85b;color:white;padding:13px 18px;border-radius:30px;font-weight:800;box-shadow:0 8px 25px rgba(0,0,0,.2);z-index:20}
-.hamburger{display:none;flex-direction:column;gap:5px;background:none;border:0;cursor:pointer;padding:6px}
-.hamburger span{width:26px;height:3px;background:var(--navy);border-radius:3px}
 @media(max-width:850px){
-nav{display:none;position:absolute;top:100%;left:0;right:0;background:white;flex-direction:column;align-items:flex-start;gap:0;padding:10px 22px;max-height:calc(100vh - 60px);overflow-y:auto;z-index:30;box-shadow:0 12px 20px rgba(0,0,0,.08)}
-nav.open{display:flex}
-nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
-.hamburger{display:flex}
-.portal-mobile{display:none}
-.nav{padding:12px 14px;gap:10px}
-.brand{gap:8px;font-size:13px}
-.brand small{font-size:9px}
-.logo{width:38px;height:38px;font-size:18px}
-.btn{padding:10px 14px;font-size:13px}
-.hero{padding:55px 18px}
-.hero-inner,.about,.contact-grid{grid-template-columns:1fr}h1{font-size:40px}.cards{grid-template-columns:1fr}.section{padding:55px 18px}#casesGrid{grid-template-columns:1fr 1fr!important}#videosGrid{grid-template-columns:1fr!important}
-}
-@media(max-width:400px){
-.nav .btn{padding:9px 11px;font-size:12px}
+nav{display:none}.portal-mobile{display:inline-block}.hero{padding:55px 18px}.hero-inner,.about,.contact-grid{grid-template-columns:1fr}h1{font-size:40px}.cards{grid-template-columns:1fr}.section{padding:55px 18px}#casesGrid{grid-template-columns:1fr 1fr!important}
 }
 .case-card{padding:0;overflow:hidden}
 .case-card img{width:100%;height:160px;object-fit:cover;display:block}
@@ -82,11 +70,10 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 <div class="logo"><img src="assets/logo.png" alt="J.K. Hospital Dental Care Center Logo" style="width:100%;height:100%;object-fit:contain;border-radius:50%"></div>
 <div>J.K. HOSPITAL DENTAL CARE CENTER<small>EXCLUSIVE DENTAL OPD CLINIC • PRAYAGRAJ</small></div>
 </a>
-<nav id="mainNav">
-<a href="#home">Home</a><a href="#about">About</a><a href="#services">Services</a><a href="#cases">Cases</a><a href="#videos">Videos</a><a href="#appointment">Appointment</a><a href="#contact">Contact</a><a class="portal-link" href="/patient-portal.html">👤 My J.K. Dental</a>
+<nav>
+<a href="#home">Home</a><a href="#about">About</a><a href="#services">Services</a><a href="#cases">Cases</a><a href="#appointment">Appointment</a><a href="#contact">Contact</a><a class="portal-link" href="/patient-portal.html">👤 My J.K. Dental</a>
 </nav>
 <a class="btn portal-mobile" href="/patient-portal.html">👤 My J.K. Dental</a><a class="btn" href="#appointment">Book Appointment</a>
-<button class="hamburger" id="hamburgerBtn" onclick="toggleNav()" aria-label="Menu"><span></span><span></span><span></span></button>
 </div>
 </header>
 
@@ -162,16 +149,6 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 </div>
 </section>
 
-<section class="section" id="videos" style="background:var(--bg)">
-<div class="wrap">
-<h2>Educational Videos</h2>
-<p class="sub">Learn about dental care and treatments from our doctors.</p>
-<div class="cards" id="videosGrid" style="grid-template-columns:repeat(3,1fr)">
-<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Loading...</p>
-</div>
-</div>
-</section>
-
 <section class="section" id="appointment">
 <div class="wrap">
 <h2>Book an Appointment</h2>
@@ -216,7 +193,6 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 <p><a href="/patient-portal.html" style="font-weight:800">👤 My J.K. Dental — Patient Portal</a></p>
 <p><a href="#appointment">→ Book an Appointment</a></p>
 <p><a href="#services">→ Dental Services</a></p>
-<p><a href="#videos">→ Educational Videos</a></p>
 <p><a href="#about">→ About the Clinic</a></p>
 <p><a href="#home">→ Back to Home</a></p>
 </div>
@@ -232,32 +208,7 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 </footer>
 
 <script>
-function toggleNav(){
- document.getElementById("mainNav").classList.toggle("open");
-}
-document.querySelectorAll("#mainNav a").forEach(a=>{
- a.addEventListener("click",()=>document.getElementById("mainNav").classList.remove("open"));
-});
-
 document.getElementById("year").textContent=new Date().getFullYear();
-async function loadVideos(){
- const grid=document.getElementById("videosGrid");
- try{
-  const res=await fetch("/api/videos");
-  const videos=await res.json();
-  if(!videos.length){grid.innerHTML='<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Videos coming soon.</p>';return;}
-  grid.innerHTML=videos.map(v=>`
-   <div class="card" style="padding:0;overflow:hidden">
-    <div style="position:relative;padding-top:56.25%">
-     <iframe src="https://www.youtube.com/embed/${v.youtube_id}" title="${(v.title||'Video').replace(/"/g,'')}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" loading="lazy" allowfullscreen></iframe>
-    </div>
-    ${v.title?`<div style="padding:12px 14px;font-weight:700;color:var(--navy);font-size:14px">${v.title}</div>`:''}
-   </div>`).join("");
- }catch(e){
-  grid.innerHTML='<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Videos coming soon.</p>';
- }
-}
-loadVideos();
 async function loadCases(){
  const grid=document.getElementById("casesGrid");
  try{
@@ -321,6 +272,87 @@ async function sendAppointment(e){
  }finally{
   btn.disabled=false;btn.textContent="Book Appointment";
  }
+}
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+</script>
+
+<!-- Install App button -->
+<style>
+#installAppBtn{
+  position:fixed;bottom:20px;right:20px;z-index:999;
+  display:none;align-items:center;gap:8px;
+  background:var(--navy,#073b4c);color:#fff;
+  padding:12px 18px;border-radius:30px;border:0;
+  font-weight:800;font-size:14px;cursor:pointer;
+  box-shadow:0 8px 22px rgba(7,59,76,.35);
+  font-family:Arial,Helvetica,sans-serif;
+}
+#installAppBtn:hover{background:var(--teal,#0b8f8f)}
+#iosInstallTip{
+  position:fixed;bottom:0;left:0;right:0;z-index:999;
+  display:none;background:#fff;padding:16px 20px;
+  box-shadow:0 -6px 20px rgba(0,0,0,.15);
+  font-family:Arial,Helvetica,sans-serif;font-size:14px;
+  color:#18323a;border-top:3px solid var(--teal,#0b8f8f);
+}
+#iosInstallTip button{
+  float:right;background:none;border:0;font-size:18px;
+  color:#60747b;cursor:pointer;line-height:1;
+}
+</style>
+
+<button id="installAppBtn">📱 Install App</button>
+<div id="iosInstallTip">
+  <button onclick="document.getElementById('iosInstallTip').style.display='none'">✕</button>
+  <strong>Install this app:</strong> Tap the Share icon <b>⬆️</b> in Safari, then choose
+  <b>"Add to Home Screen"</b>.
+</div>
+
+<script>
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById("installAppBtn");
+const iosTip = document.getElementById("iosInstallTip");
+
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isInStandaloneMode =
+  window.matchMedia("(display-mode: standalone)").matches ||
+  window.navigator.standalone === true;
+
+if (!isInStandaloneMode) {
+  if (isIos) {
+    iosTip.style.display = "block";
+  } else {
+    // Show button immediately; don't wait for beforeinstallprompt
+    installBtn.style.display = "inline-flex";
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+    });
+
+    installBtn.addEventListener("click", async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        installBtn.style.display = "none";
+      } else {
+        alert(
+          'Is device par auto-install available nahi hai.\n\nManually install karein:\nBrowser ke top-right ⋮ (3-dot) menu par tap karein, phir "Install app" ya "Add to Home screen" chunein.'
+        );
+      }
+    });
+
+    window.addEventListener("appinstalled", () => {
+      installBtn.style.display = "none";
+    });
+  }
 }
 </script>
 </body>
