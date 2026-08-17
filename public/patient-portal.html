@@ -136,8 +136,8 @@ async function login(){
 }
 
 async function loadAll(){
- await Promise.all([loadAppointments(), Promise.resolve(loadTreatment())]);
- renderNextAppointment();
+ loadAppointments();
+ loadTreatment();
  loadPrescriptions();
  loadBills();
  loadXrays();
@@ -145,29 +145,9 @@ async function loadAll(){
 
 function esc(s){return String(s==null?'':s).replace(/</g,"&lt;");}
 
-function todayStr(){return new Date().toISOString().slice(0,10);}
-
-function renderNextAppointment(){
- const nextBox=document.getElementById('nextAppt');
- const today=todayStr();
- const candidates=[];
- (STATE.appts||[]).filter(a=>a.status!=='cancelled' && a.pref_date>=today).forEach(a=>{
-  candidates.push({date:a.pref_date,time:a.pref_time||'',label:a.service||'Consultation',source:'Requested online',status:a.status});
- });
- (STATE.patient?.visits||[]).filter(v=>v.next && v.next>=today).forEach(v=>{
-  candidates.push({date:v.next,time:'',label:'Follow-up visit',source:'Scheduled by doctor',status:'confirmed'});
- });
- if(!candidates.length){
-  nextBox.innerHTML='<p class="mut">No upcoming appointment. Use "Book Appointment" above.</p>';
-  return;
- }
- candidates.sort((a,b)=>a.date.localeCompare(b.date));
- const n=candidates[0];
- nextBox.innerHTML=`<div class="row"><span><b>${esc(n.label)}</b><br><span class="mut">${esc(n.date)}${n.time?' at '+esc(n.time):''} • ${esc(n.source)}</span></span><span class="pill ${n.status}">${esc(n.status)}</span></div>`;
-}
-
 async function loadAppointments(){
  const list=document.getElementById('apptList');
+ const nextBox=document.getElementById('nextAppt');
  try{
   const res=await fetch(`/api/appointments/by-phone?phone=${STATE.mobile}`);
   const appts=await res.json();
@@ -175,12 +155,14 @@ async function loadAppointments(){
   document.getElementById('statUpcoming').textContent=appts.filter(a=>a.status!=='cancelled').length;
   if(!appts.length){
    list.innerHTML='<p class="mut">No appointment requests yet.</p>';
+   nextBox.innerHTML='<p class="mut">No upcoming appointment. Use "Book Appointment" above.</p>';
    return;
   }
   list.innerHTML=appts.map(a=>`<div class="row"><span><b>${esc(a.service||'Consultation')}</b><br><span class="mut">${esc(a.pref_date||'-')} at ${esc(a.pref_time||'-')}</span></span><span class="pill ${a.status}">${esc(a.status)}</span></div>`).join('');
+  const upcoming=appts.find(a=>a.status!=='cancelled');
+  nextBox.innerHTML=upcoming?`<div class="row"><span><b>${esc(upcoming.service||'Consultation')}</b><br><span class="mut">${esc(upcoming.pref_date||'-')} at ${esc(upcoming.pref_time||'-')}</span></span><span class="pill ${upcoming.status}">${esc(upcoming.status)}</span></div>`:'<p class="mut">No upcoming appointment.</p>';
  }catch(e){
   list.innerHTML='<p class="mut">Could not load appointments.</p>';
-  STATE.appts=[];
  }
 }
 
@@ -268,8 +250,13 @@ function billReceiptHtml(b){
 }
 
 async function generateBillPDF(b){
+ const container=document.createElement('div');
+ container.innerHTML=billReceiptHtml(b);
+ document.body.appendChild(container);
  const safeUHID=String(STATE.uhid||'UHID').replace(/\//g,'-');
- await generatePdfFromHtml(billReceiptHtml(b),`Bill_${b.no}_${safeUHID}.pdf`);
+ const opt={margin:[10,10,10,10],filename:`Bill_${b.no}_${safeUHID}.pdf`,image:{type:'jpeg',quality:1},html2canvas:{scale:1.5,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['avoid-all','css','legacy']}};
+ await html2pdf().set(opt).from(container).save();
+ container.remove();
 }
 
 async function downloadSingleBill(idx){
@@ -279,7 +266,7 @@ async function downloadSingleBill(idx){
  msg.textContent='Preparing bill PDF...';
  try{
   await generateBillPDF(bill);
-  msg.textContent=isIOS()?'PDF opened in a new tab. Use the Share button to save it.':'Bill downloaded.';
+  msg.textContent='Bill downloaded.';
  }catch(e){console.error(e);msg.textContent='Could not generate bill PDF.';}
 }
 
@@ -294,7 +281,7 @@ async function downloadSelectedBills(){
   for(const idx of checked){
    await generateBillPDF(STATE.bills[idx]);
   }
-  msg.textContent=isIOS()?`${checked.length} bill(s) opened in new tabs — use Share to save each.`:`${checked.length} bill(s) downloaded.`;
+  msg.textContent=`${checked.length} bill(s) downloaded.`;
  }catch(e){console.error(e);msg.textContent='Could not generate one or more bill PDFs.';}
  finally{btn.disabled=false;btn.textContent='⬇ Download Selected';}
 }
@@ -309,30 +296,6 @@ async function loadXrays(){
   el.innerHTML=xrays.map(x=>`<img src="${x.data}" alt="X-Ray ${esc(x.filename||'')}" loading="lazy">`).join('');
  }catch(e){
   el.innerHTML='<p class="mut">Could not load X-rays.</p>';
- }
-}
-
-function isIOS(){
- return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
-}
-
-async function generatePdfFromHtml(html, filename){
- const container=document.createElement('div');
- container.innerHTML=html;
- container.style.cssText='position:fixed;left:-9999px;top:0;width:800px;background:#fff;z-index:-1';
- document.body.appendChild(container);
- const opt={margin:[10,10,10,10],filename,image:{type:'jpeg',quality:1},html2canvas:{scale:1.5,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['avoid-all','css','legacy']}};
- try{
-  if(isIOS()){
-   const blob=await html2pdf().set(opt).from(container).outputPdf('blob');
-   const url=URL.createObjectURL(blob);
-   window.open(url,'_blank');
-   setTimeout(()=>URL.revokeObjectURL(url),60000);
-  }else{
-   await html2pdf().set(opt).from(container).save();
-  }
- }finally{
-  container.remove();
  }
 }
 
@@ -363,11 +326,14 @@ async function downloadRxPDF(){
     const visitRows=visits.map(v=>{const proc=master.find(x=>x.code===v.code);return `<tr><td style="padding:6px;border:1px solid #ddd">${escRx(v.date)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(proc?proc.procedure:(v.procedure||v.code||''))}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd">${escRx(v.notes)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(v.next)}</td></tr>`}).join('');
     const xrayHtml=xrays.length?`<h3 style="margin-top:18px">X-Ray Images</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${xrays.map(x=>`<img src="${x.data}" style="width:150px;height:150px;object-fit:cover;border:1px solid #ccc;border-radius:6px">`).join('')}</div>`:'';
     const rxHtml=`<html><head><title>Rx - ${escRx(form.name||'Patient')}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.footer{margin-top:30px;color:#666;font-size:13px}</style></head><body><h2>${clinicName}</h2><div class="meta">${clinicAddr}</div><hr><div><strong>UHID:</strong> ${escRx(STATE.uhid)} &nbsp;&nbsp; <strong>Date:</strong> ${escRx(form.date||'')}</div><div><strong>Patient:</strong> ${escRx(form.name||'')} &nbsp; <strong>Age:</strong> ${escRx(form.age||'')} &nbsp; <strong>Sex:</strong> ${escRx(form.sex||'')} &nbsp; <strong>Category:</strong> ${escRx(cats[form.category]||form.category||'')}</div><div style="margin-top:8px"><strong>PMH:</strong> ${escRx(form.pmh||'---')}</div><div style="margin-top:8px"><strong>Chief Complaint/TEST:</strong> ${escRx(form.cc||'---')}</div><h3 style="margin-top:12px">Medicines</h3><table class="rx-table"><thead><tr><th style="width:6%">#</th><th>Medicine</th><th style="width:18%">Dose</th><th style="width:14%">Frequency</th><th style="width:14%">Duration</th></tr></thead><tbody>${medRows||'<tr><td colspan="5" style="padding:8px;text-align:center;color:#666">No medicines prescribed.</td></tr>'}</tbody></table><h3 style="margin-top:12px">Procedures</h3><table class="rx-table"><thead><tr><th style="width:20%">Code</th><th>Procedure</th><th style="width:20%">Boxes</th><th style="width:14%">Qty</th></tr></thead><tbody>${procRows||'<tr><td colspan="4" style="padding:8px;text-align:center;color:#666">No procedures added.</td></tr>'}</tbody></table><h3 style="margin-top:18px">Visit History</h3><table class="rx-table"><thead><tr><th style="width:16%">Date</th><th style="width:28%">Procedure</th><th style="width:18%">Tooth</th><th>Clinical Notes</th><th style="width:16%">Next Visit</th></tr></thead><tbody>${visitRows||'<tr><td colspan="5" style="text-align:center;color:#666">No Visit History</td></tr>'}</tbody></table>${xrayHtml}<div class="footer">Signature: ____________________ &nbsp;&nbsp; SIGN & STAMP</div></body></html>`;
+    const container=document.createElement('div');container.innerHTML=rxHtml;document.body.appendChild(container);
     const safeName=String(form.name||'Patient').replace(/[^a-zA-Z0-9]/g,'_');
     const safeUHID=String(STATE.uhid||'UHID').replace(/\//g,'-');
     const dt=form.date||new Date().toISOString().slice(0,10);
-    await generatePdfFromHtml(rxHtml,`${safeName}_${safeUHID}_${dt}.pdf`);
-    msg.textContent=isIOS()?'PDF opened in a new tab. Use the Share button to save it.':'Rx PDF downloaded.';
+    const opt={margin:[10,10,10,10],filename:`${safeName}_${safeUHID}_${dt}.pdf`,image:{type:'jpeg',quality:1},html2canvas:{scale:1.5,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['avoid-all','css','legacy']}};
+    await html2pdf().set(opt).from(container).save();
+    container.remove();
+    msg.textContent='Rx PDF downloaded.';
   }catch(e){console.error(e);msg.textContent='Could not generate Rx PDF. Please try again.';}
   finally{btn.disabled=false;btn.textContent='⬇ Download Rx';}
 }
