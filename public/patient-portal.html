@@ -267,7 +267,7 @@ function billReceiptHtml(b){
 }
 
 async function generateBillPDF(b){
- await printDocument(billReceiptHtml(b));
+ await printDocument(billReceiptHtml(b), `Bill_${String(b.no||'JKD').replace(/[^a-zA-Z0-9_-]/g,'_')}.pdf`);
 }
 
 async function downloadSingleBill(idx){
@@ -276,7 +276,7 @@ async function downloadSingleBill(idx){
  msg.textContent='Opening print dialog...';
  try{
   await generateBillPDF(bill);
-  msg.textContent='Print dialog opened — choose "Save as PDF" to download.';
+  msg.textContent='PDF generated and downloaded.';
  }catch(e){console.error(e);msg.textContent='Could not open bill.';}
 }
 
@@ -290,7 +290,7 @@ async function downloadSelectedBills(){
   for(const idx of checked){
    await generateBillPDF(STATE.bills[idx]);
   }
-  msg.textContent=`${checked.length} bill(s) opened for printing — choose "Save as PDF" in each.`;
+  msg.textContent=`${checked.length} bill(s) generated. Check your Downloads folder.`;
  }catch(e){console.error(e);msg.textContent='Could not open one or more bills.';}
  finally{btn.disabled=false;btn.textContent='⬇ Download Selected';}
 }
@@ -318,30 +318,54 @@ function viewXray(i){
  document.body.appendChild(overlay);
 }
 
-function printDocument(html){
- return new Promise((resolve)=>{
-  const win=window.open('','_blank');
-  if(!win){
-   alert('Please allow popups for this site so the PDF can open, then try again.');
-   resolve(false);
-   return;
-  }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  const trigger=()=>{
-   try{win.focus();win.print();}catch(e){}
-   resolve(true);
-  };
-  if(win.document.readyState==='complete'){
-   setTimeout(trigger,300);
-  }else{
-   win.onload=()=>setTimeout(trigger,300);
-   setTimeout(trigger,1200);
-  }
- });
+async function generateDirectPDF(html, filename){
+  if(!window.jspdf || !window.html2canvas) await loadPdfLibraries();
+
+  const host=document.createElement('div');
+  host.style.cssText='position:fixed;left:-100000px;top:0;width:794px;background:#fff;color:#111;';
+  host.innerHTML=html;
+  document.body.appendChild(host);
+
+  try{
+    const canvas=await html2canvas(host,{scale:2,useCORS:true,backgroundColor:'#fff',logging:false});
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF('p','mm','a4');
+    const margin=8, pageW=210, pageH=297, usableW=pageW-margin*2;
+    const imgH=canvas.height*usableW/canvas.width;
+    const contentH=pageH-margin*2;
+    let rendered=0;
+    while(rendered<imgH){
+      if(rendered>0) pdf.addPage();
+      const sliceH=Math.min(contentH,imgH-rendered);
+      const sy=rendered*canvas.width/usableW;
+      const sh=sliceH*canvas.width/usableW;
+      const pc=document.createElement('canvas');
+      pc.width=canvas.width; pc.height=Math.ceil(sh);
+      pc.getContext('2d').drawImage(canvas,0,sy,canvas.width,sh,0,0,canvas.width,sh);
+      pdf.addImage(pc.toDataURL('image/jpeg',0.95),'JPEG',margin,margin,usableW,sliceH);
+      rendered+=sliceH;
+    }
+    pdf.save(filename||'JK-Dental.pdf');
+    return true;
+  }finally{host.remove();}
 }
 
+function loadPdfLibraries(){
+  return new Promise((resolve,reject)=>{
+    if(window.jspdf && window.html2canvas)return resolve();
+    let pending=2, failed=false;
+    const done=()=>{if(--pending===0)resolve();};
+    const fail=()=>{if(!failed){failed=true;reject(new Error('PDF library could not be loaded.'));}};
+    const a=document.createElement('script');
+    a.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    a.onload=done;a.onerror=fail;document.head.appendChild(a);
+    const b=document.createElement('script');
+    b.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    b.onload=done;b.onerror=fail;document.head.appendChild(b);
+  });
+}
+
+function printDocument(html,filename){return generateDirectPDF(html,filename);}
 async function downloadRxPDF(){
   const btn=document.getElementById('downloadRxBtn');
   const msg=document.getElementById('rxDownloadMsg');
@@ -368,8 +392,8 @@ async function downloadRxPDF(){
     const visitRows=visits.map(v=>{const proc=master.find(x=>x.code===v.code);return `<tr><td style="padding:6px;border:1px solid #ddd">${escRx(v.date)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(proc?proc.procedure:(v.procedure||v.code||''))}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd">${escRx(v.notes)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(v.next)}</td></tr>`}).join('');
     const xrayHtml=xrays.length?`<h3 style="margin-top:18px">X-Ray Images</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${xrays.map(x=>`<img src="${x.data}" style="width:150px;height:150px;object-fit:contain;background:#000;border:1px solid #ccc;border-radius:6px">`).join('')}</div>`:'';
     const rxHtml=`<html><head><meta charset="utf-8"><title>Rx - ${escRx(form.name||'Patient')}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.footer{margin-top:30px;color:#666;font-size:13px}@media print{body{padding:0}}</style></head><body><h2>${clinicName}</h2><div class="meta">${clinicAddr}</div><hr><div><strong>UHID:</strong> ${escRx(STATE.uhid)} &nbsp;&nbsp; <strong>Date:</strong> ${escRx(form.date||'')}</div><div><strong>Patient:</strong> ${escRx(form.name||'')} &nbsp; <strong>Age:</strong> ${escRx(form.age||'')} &nbsp; <strong>Sex:</strong> ${escRx(form.sex||'')} &nbsp; <strong>Category:</strong> ${escRx(cats[form.category]||form.category||'')}</div><div style="margin-top:8px"><strong>PMH:</strong> ${escRx(form.pmh||'---')}</div><div style="margin-top:8px"><strong>Chief Complaint/TEST:</strong> ${escRx(form.cc||'---')}</div><h3 style="margin-top:12px">Medicines</h3><table class="rx-table"><thead><tr><th style="width:6%">#</th><th>Medicine</th><th style="width:18%">Dose</th><th style="width:14%">Frequency</th><th style="width:14%">Duration</th></tr></thead><tbody>${medRows||'<tr><td colspan="5" style="padding:8px;text-align:center;color:#666">No medicines prescribed.</td></tr>'}</tbody></table><h3 style="margin-top:12px">Procedures</h3><table class="rx-table"><thead><tr><th style="width:20%">Code</th><th>Procedure</th><th style="width:20%">Boxes</th><th style="width:14%">Qty</th></tr></thead><tbody>${procRows||'<tr><td colspan="4" style="padding:8px;text-align:center;color:#666">No procedures added.</td></tr>'}</tbody></table><h3 style="margin-top:18px">Visit History</h3><table class="rx-table"><thead><tr><th style="width:16%">Date</th><th style="width:28%">Procedure</th><th style="width:18%">Tooth</th><th>Clinical Notes</th><th style="width:16%">Next Visit</th></tr></thead><tbody>${visitRows||'<tr><td colspan="5" style="text-align:center;color:#666">No Visit History</td></tr>'}</tbody></table>${xrayHtml}<div class="footer">Signature: ____________________ &nbsp;&nbsp; SIGN & STAMP</div></body></html>`;
-    await printDocument(rxHtml);
-    msg.textContent='Print dialog opened — choose "Save as PDF" to download.';
+    await printDocument(rxHtml, `Rx_${String(form.name||'Patient').replace(/[^a-zA-Z0-9_-]/g,'_')}_${String(STATE.uhid||'').replace(/[^a-zA-Z0-9_-]/g,'_')}.pdf`);
+    msg.textContent='PDF generated and downloaded.';
   }catch(e){console.error(e);msg.textContent='Could not open Rx. Please try again.';}
   finally{btn.disabled=false;btn.textContent='⬇ Download Rx';}
 }
