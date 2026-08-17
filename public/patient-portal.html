@@ -13,11 +13,10 @@
 label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{width:100%;padding:13px;border:1px solid var(--line);border-radius:10px;font:inherit}.btn{border:0;background:var(--t);color:#fff;padding:12px 17px;border-radius:11px;font-weight:800;cursor:pointer}.secondary{background:#fff;color:var(--n);border:1px solid #d4e5e7}.full{width:100%;margin-top:18px}.note{margin-top:16px;padding:12px;border-radius:10px;background:#fff8df;font-size:12px}
 .wrap{padding:28px 18px}.hero,.panel,.card{background:#fff;border-radius:18px;box-shadow:0 8px 25px #073b4c0d}.hero{padding:24px;display:flex;justify-content:space-between;gap:20px;align-items:center}.uhid{color:var(--t);font-weight:800}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.tab{padding:10px 13px;border:1px solid var(--line);background:#fff;border-radius:10px;font-weight:700;color:var(--n);cursor:pointer}.tab.sel{background:var(--n);color:#fff}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}.card{padding:20px}.stat{font-size:27px;font-weight:900;color:var(--n)}.mut{font-size:13px;color:var(--mut)}.panel{padding:22px;margin-top:18px}.row{display:flex;justify-content:space-between;gap:20px;padding:15px 0;border-bottom:1px solid var(--line)}.pill{background:#e8f8f7;color:var(--t);padding:5px 9px;border-radius:20px;font-size:12px;font-weight:800}.footer{text-align:center;color:var(--mut);font-size:12px;padding:30px}
 .pill.pending{background:#fff3cd;color:#7a5b00}.pill.confirmed{background:#d4f4dd;color:#0f6b2e}.pill.cancelled{background:#fbdada;color:#a11c1c}
-.xray-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}.xray-grid img{width:100%;height:120px;object-fit:cover;border-radius:10px;box-shadow:0 4px 12px #073b4c14}
+.xray-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}.xray-grid img{width:100%;height:200px;object-fit:contain;background:#000;border-radius:10px;box-shadow:0 4px 12px #073b4c14}
 .err{color:#c0392b;font-size:13px;margin-top:10px}
 @media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.hero{display:block}.wrap{padding:20px 14px}}@media(max-width:480px){.grid{grid-template-columns:1fr}.login{margin:3vh 14px;padding:25px}}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="top"><div class="topin"><div class="brand">🦷 J.K. HOSPITAL DENTAL CARE CENTER<small>MY J.K. DENTAL • PATIENT PORTAL</small></div><a href="/" class="btn secondary">← Website</a></div></div>
@@ -136,8 +135,8 @@ async function login(){
 }
 
 async function loadAll(){
- loadAppointments();
- loadTreatment();
+ await Promise.all([loadAppointments(), Promise.resolve(loadTreatment())]);
+ renderNextAppointment();
  loadPrescriptions();
  loadBills();
  loadXrays();
@@ -145,9 +144,29 @@ async function loadAll(){
 
 function esc(s){return String(s==null?'':s).replace(/</g,"&lt;");}
 
+function todayStr(){return new Date().toISOString().slice(0,10);}
+
+function renderNextAppointment(){
+ const nextBox=document.getElementById('nextAppt');
+ const today=todayStr();
+ const candidates=[];
+ (STATE.appts||[]).filter(a=>a.status!=='cancelled' && a.pref_date>=today).forEach(a=>{
+  candidates.push({date:a.pref_date,time:a.pref_time||'',label:a.service||'Consultation',source:'Requested online',status:a.status});
+ });
+ (STATE.patient?.visits||[]).filter(v=>v.next && v.next>=today).forEach(v=>{
+  candidates.push({date:v.next,time:'',label:'Follow-up visit',source:'Scheduled by doctor',status:'confirmed'});
+ });
+ if(!candidates.length){
+  nextBox.innerHTML='<p class="mut">No upcoming appointment. Use "Book Appointment" above.</p>';
+  return;
+ }
+ candidates.sort((a,b)=>a.date.localeCompare(b.date));
+ const n=candidates[0];
+ nextBox.innerHTML=`<div class="row"><span><b>${esc(n.label)}</b><br><span class="mut">${esc(n.date)}${n.time?' at '+esc(n.time):''} • ${esc(n.source)}</span></span><span class="pill ${n.status}">${esc(n.status)}</span></div>`;
+}
+
 async function loadAppointments(){
  const list=document.getElementById('apptList');
- const nextBox=document.getElementById('nextAppt');
  try{
   const res=await fetch(`/api/appointments/by-phone?phone=${STATE.mobile}`);
   const appts=await res.json();
@@ -155,14 +174,12 @@ async function loadAppointments(){
   document.getElementById('statUpcoming').textContent=appts.filter(a=>a.status!=='cancelled').length;
   if(!appts.length){
    list.innerHTML='<p class="mut">No appointment requests yet.</p>';
-   nextBox.innerHTML='<p class="mut">No upcoming appointment. Use "Book Appointment" above.</p>';
    return;
   }
   list.innerHTML=appts.map(a=>`<div class="row"><span><b>${esc(a.service||'Consultation')}</b><br><span class="mut">${esc(a.pref_date||'-')} at ${esc(a.pref_time||'-')}</span></span><span class="pill ${a.status}">${esc(a.status)}</span></div>`).join('');
-  const upcoming=appts.find(a=>a.status!=='cancelled');
-  nextBox.innerHTML=upcoming?`<div class="row"><span><b>${esc(upcoming.service||'Consultation')}</b><br><span class="mut">${esc(upcoming.pref_date||'-')} at ${esc(upcoming.pref_time||'-')}</span></span><span class="pill ${upcoming.status}">${esc(upcoming.status)}</span></div>`:'<p class="mut">No upcoming appointment.</p>';
  }catch(e){
   list.innerHTML='<p class="mut">Could not load appointments.</p>';
+  STATE.appts=[];
  }
 }
 
@@ -231,7 +248,7 @@ function billReceiptHtml(b){
  const bal=Math.max(0,(parseFloat(b.total)||0)-paid);
  const lineRows=(b.lines||[]).map((l,i)=>`<tr><td style="padding:6px;border:1px solid #ddd;text-align:center">${i+1}</td><td style="padding:6px;border:1px solid #ddd">${escB(l.label)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escB(l.qty)}</td><td style="padding:6px;border:1px solid #ddd;text-align:right">₹${escB(l.rate)}</td><td style="padding:6px;border:1px solid #ddd;text-align:right">₹${escB(l.total)}</td></tr>`).join('');
  const payRows=(b.payments||[]).map(p=>`<tr><td style="padding:6px;border:1px solid #ddd">${escB(p.date||'-')}</td><td style="padding:6px;border:1px solid #ddd">${escB(p.mode||'-')}</td><td style="padding:6px;border:1px solid #ddd;text-align:right">₹${escB(p.amount)}</td></tr>`).join('');
- return `<html><head><title>Bill ${escB(b.no)}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.total-row{font-weight:bold;background:#f5fafa}.footer{margin-top:30px;color:#666;font-size:13px}</style></head><body>
+ return `<html><head><meta charset="utf-8"><title>Bill ${escB(b.no)}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.total-row{font-weight:bold;background:#f5fafa}.footer{margin-top:30px;color:#666;font-size:13px}@media print{body{padding:0}}</style></head><body>
  <h2>${clinicName}</h2><div class="meta">${clinicAddr}</div><hr>
  <div><strong>Bill No:</strong> ${escB(b.no)} &nbsp;&nbsp; <strong>Date:</strong> ${escB(b.date||'')}</div>
  <div><strong>Patient:</strong> ${escB(b.name||'')} &nbsp; <strong>Age:</strong> ${escB(b.age||'')} &nbsp; <strong>Sex:</strong> ${escB(b.sex||'')} &nbsp; <strong>UHID:</strong> ${escB(b.patientUHID||'')}</div>
@@ -250,30 +267,22 @@ function billReceiptHtml(b){
 }
 
 async function generateBillPDF(b){
- const container=document.createElement('div');
- container.innerHTML=billReceiptHtml(b);
- document.body.appendChild(container);
- const safeUHID=String(STATE.uhid||'UHID').replace(/\//g,'-');
- const opt={margin:[10,10,10,10],filename:`Bill_${b.no}_${safeUHID}.pdf`,image:{type:'jpeg',quality:1},html2canvas:{scale:1.5,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['avoid-all','css','legacy']}};
- await html2pdf().set(opt).from(container).save();
- container.remove();
+ await printDocument(billReceiptHtml(b));
 }
 
 async function downloadSingleBill(idx){
  const msg=document.getElementById('billsDownloadMsg');
- if(typeof html2pdf==='undefined'){msg.textContent='PDF engine could not be loaded. Please try again.';return;}
  const bill=STATE.bills[idx];
- msg.textContent='Preparing bill PDF...';
+ msg.textContent='Opening print dialog...';
  try{
   await generateBillPDF(bill);
-  msg.textContent='Bill downloaded.';
- }catch(e){console.error(e);msg.textContent='Could not generate bill PDF.';}
+  msg.textContent='Print dialog opened — choose "Save as PDF" to download.';
+ }catch(e){console.error(e);msg.textContent='Could not open bill.';}
 }
 
 async function downloadSelectedBills(){
  const msg=document.getElementById('billsDownloadMsg');
  const btn=document.getElementById('downloadSelectedBtn');
- if(typeof html2pdf==='undefined'){msg.textContent='PDF engine could not be loaded. Please try again.';return;}
  const checked=[...document.querySelectorAll('.billCheck:checked')].map(c=>parseInt(c.dataset.idx));
  if(!checked.length){msg.textContent='Please select at least one bill.';return;}
  btn.disabled=true; btn.textContent='Preparing...'; msg.textContent='';
@@ -281,8 +290,8 @@ async function downloadSelectedBills(){
   for(const idx of checked){
    await generateBillPDF(STATE.bills[idx]);
   }
-  msg.textContent=`${checked.length} bill(s) downloaded.`;
- }catch(e){console.error(e);msg.textContent='Could not generate one or more bill PDFs.';}
+  msg.textContent=`${checked.length} bill(s) opened for printing — choose "Save as PDF" in each.`;
+ }catch(e){console.error(e);msg.textContent='Could not open one or more bills.';}
  finally{btn.disabled=false;btn.textContent='⬇ Download Selected';}
 }
 
@@ -293,18 +302,51 @@ async function loadXrays(){
   const xrays=res.ok?await res.json():[];
   STATE.xrays=xrays;
   if(!xrays.length){el.innerHTML='<p class="mut">No X-rays on record.</p>';return;}
-  el.innerHTML=xrays.map(x=>`<img src="${x.data}" alt="X-Ray ${esc(x.filename||'')}" loading="lazy">`).join('');
+  el.innerHTML=xrays.map((x,i)=>`<img src="${x.data}" alt="X-Ray ${esc(x.filename||'')}" loading="lazy" onclick="viewXray(${i})" style="cursor:pointer">`).join('');
  }catch(e){
   el.innerHTML='<p class="mut">Could not load X-rays.</p>';
  }
+}
+
+function viewXray(i){
+ const x=STATE.xrays[i];
+ if(!x)return;
+ const overlay=document.createElement('div');
+ overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px';
+ overlay.innerHTML=`<img src="${x.data}" style="max-width:100%;max-height:90vh;object-fit:contain"><span style="position:absolute;top:16px;right:20px;color:#fff;font-size:28px;cursor:pointer">✕</span>`;
+ overlay.onclick=()=>overlay.remove();
+ document.body.appendChild(overlay);
+}
+
+function printDocument(html){
+ return new Promise((resolve)=>{
+  const win=window.open('','_blank');
+  if(!win){
+   alert('Please allow popups for this site so the PDF can open, then try again.');
+   resolve(false);
+   return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  const trigger=()=>{
+   try{win.focus();win.print();}catch(e){}
+   resolve(true);
+  };
+  if(win.document.readyState==='complete'){
+   setTimeout(trigger,300);
+  }else{
+   win.onload=()=>setTimeout(trigger,300);
+   setTimeout(trigger,1200);
+  }
+ });
 }
 
 async function downloadRxPDF(){
   const btn=document.getElementById('downloadRxBtn');
   const msg=document.getElementById('rxDownloadMsg');
   if(!STATE.patient){msg.textContent='Patient record is not loaded.';return;}
-  if(typeof html2pdf==='undefined'){msg.textContent='PDF engine could not be loaded. Please try again.';return;}
-  btn.disabled=true; btn.textContent='Preparing Rx PDF...'; msg.textContent='';
+  btn.disabled=true; btn.textContent='Preparing Rx...'; msg.textContent='';
   try{
     const p=STATE.patient||{};
     const form=p.form||{};
@@ -324,17 +366,11 @@ async function downloadRxPDF(){
     const medRows=meds.map((m,i)=>`<tr><td style="padding:6px;border:1px solid #ddd;text-align:center">${i+1}</td><td style="padding:6px;border:1px solid #ddd">${escRx(m.name)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.dose)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.freq)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.duration)}</td></tr>`).join('');
     const procRows=items.map(p=>`<tr><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(p.code)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(p.procedure)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:60px;height:24px;text-align:center;font-size:14px">${escRx(p.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;text-align:center;font-size:14px">${escRx(p.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:60px;height:24px;text-align:center;font-size:14px">${escRx(p.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;text-align:center;font-size:14px">${escRx(p.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(p.no)}</td></tr>`).join('');
     const visitRows=visits.map(v=>{const proc=master.find(x=>x.code===v.code);return `<tr><td style="padding:6px;border:1px solid #ddd">${escRx(v.date)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(proc?proc.procedure:(v.procedure||v.code||''))}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd">${escRx(v.notes)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(v.next)}</td></tr>`}).join('');
-    const xrayHtml=xrays.length?`<h3 style="margin-top:18px">X-Ray Images</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${xrays.map(x=>`<img src="${x.data}" style="width:150px;height:150px;object-fit:cover;border:1px solid #ccc;border-radius:6px">`).join('')}</div>`:'';
-    const rxHtml=`<html><head><title>Rx - ${escRx(form.name||'Patient')}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.footer{margin-top:30px;color:#666;font-size:13px}</style></head><body><h2>${clinicName}</h2><div class="meta">${clinicAddr}</div><hr><div><strong>UHID:</strong> ${escRx(STATE.uhid)} &nbsp;&nbsp; <strong>Date:</strong> ${escRx(form.date||'')}</div><div><strong>Patient:</strong> ${escRx(form.name||'')} &nbsp; <strong>Age:</strong> ${escRx(form.age||'')} &nbsp; <strong>Sex:</strong> ${escRx(form.sex||'')} &nbsp; <strong>Category:</strong> ${escRx(cats[form.category]||form.category||'')}</div><div style="margin-top:8px"><strong>PMH:</strong> ${escRx(form.pmh||'---')}</div><div style="margin-top:8px"><strong>Chief Complaint/TEST:</strong> ${escRx(form.cc||'---')}</div><h3 style="margin-top:12px">Medicines</h3><table class="rx-table"><thead><tr><th style="width:6%">#</th><th>Medicine</th><th style="width:18%">Dose</th><th style="width:14%">Frequency</th><th style="width:14%">Duration</th></tr></thead><tbody>${medRows||'<tr><td colspan="5" style="padding:8px;text-align:center;color:#666">No medicines prescribed.</td></tr>'}</tbody></table><h3 style="margin-top:12px">Procedures</h3><table class="rx-table"><thead><tr><th style="width:20%">Code</th><th>Procedure</th><th style="width:20%">Boxes</th><th style="width:14%">Qty</th></tr></thead><tbody>${procRows||'<tr><td colspan="4" style="padding:8px;text-align:center;color:#666">No procedures added.</td></tr>'}</tbody></table><h3 style="margin-top:18px">Visit History</h3><table class="rx-table"><thead><tr><th style="width:16%">Date</th><th style="width:28%">Procedure</th><th style="width:18%">Tooth</th><th>Clinical Notes</th><th style="width:16%">Next Visit</th></tr></thead><tbody>${visitRows||'<tr><td colspan="5" style="text-align:center;color:#666">No Visit History</td></tr>'}</tbody></table>${xrayHtml}<div class="footer">Signature: ____________________ &nbsp;&nbsp; SIGN & STAMP</div></body></html>`;
-    const container=document.createElement('div');container.innerHTML=rxHtml;document.body.appendChild(container);
-    const safeName=String(form.name||'Patient').replace(/[^a-zA-Z0-9]/g,'_');
-    const safeUHID=String(STATE.uhid||'UHID').replace(/\//g,'-');
-    const dt=form.date||new Date().toISOString().slice(0,10);
-    const opt={margin:[10,10,10,10],filename:`${safeName}_${safeUHID}_${dt}.pdf`,image:{type:'jpeg',quality:1},html2canvas:{scale:1.5,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['avoid-all','css','legacy']}};
-    await html2pdf().set(opt).from(container).save();
-    container.remove();
-    msg.textContent='Rx PDF downloaded.';
-  }catch(e){console.error(e);msg.textContent='Could not generate Rx PDF. Please try again.';}
+    const xrayHtml=xrays.length?`<h3 style="margin-top:18px">X-Ray Images</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${xrays.map(x=>`<img src="${x.data}" style="width:150px;height:150px;object-fit:contain;background:#000;border:1px solid #ccc;border-radius:6px">`).join('')}</div>`:'';
+    const rxHtml=`<html><head><meta charset="utf-8"><title>Rx - ${escRx(form.name||'Patient')}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.footer{margin-top:30px;color:#666;font-size:13px}@media print{body{padding:0}}</style></head><body><h2>${clinicName}</h2><div class="meta">${clinicAddr}</div><hr><div><strong>UHID:</strong> ${escRx(STATE.uhid)} &nbsp;&nbsp; <strong>Date:</strong> ${escRx(form.date||'')}</div><div><strong>Patient:</strong> ${escRx(form.name||'')} &nbsp; <strong>Age:</strong> ${escRx(form.age||'')} &nbsp; <strong>Sex:</strong> ${escRx(form.sex||'')} &nbsp; <strong>Category:</strong> ${escRx(cats[form.category]||form.category||'')}</div><div style="margin-top:8px"><strong>PMH:</strong> ${escRx(form.pmh||'---')}</div><div style="margin-top:8px"><strong>Chief Complaint/TEST:</strong> ${escRx(form.cc||'---')}</div><h3 style="margin-top:12px">Medicines</h3><table class="rx-table"><thead><tr><th style="width:6%">#</th><th>Medicine</th><th style="width:18%">Dose</th><th style="width:14%">Frequency</th><th style="width:14%">Duration</th></tr></thead><tbody>${medRows||'<tr><td colspan="5" style="padding:8px;text-align:center;color:#666">No medicines prescribed.</td></tr>'}</tbody></table><h3 style="margin-top:12px">Procedures</h3><table class="rx-table"><thead><tr><th style="width:20%">Code</th><th>Procedure</th><th style="width:20%">Boxes</th><th style="width:14%">Qty</th></tr></thead><tbody>${procRows||'<tr><td colspan="4" style="padding:8px;text-align:center;color:#666">No procedures added.</td></tr>'}</tbody></table><h3 style="margin-top:18px">Visit History</h3><table class="rx-table"><thead><tr><th style="width:16%">Date</th><th style="width:28%">Procedure</th><th style="width:18%">Tooth</th><th>Clinical Notes</th><th style="width:16%">Next Visit</th></tr></thead><tbody>${visitRows||'<tr><td colspan="5" style="text-align:center;color:#666">No Visit History</td></tr>'}</tbody></table>${xrayHtml}<div class="footer">Signature: ____________________ &nbsp;&nbsp; SIGN & STAMP</div></body></html>`;
+    await printDocument(rxHtml);
+    msg.textContent='Print dialog opened — choose "Save as PDF" to download.';
+  }catch(e){console.error(e);msg.textContent='Could not open Rx. Please try again.';}
   finally{btn.disabled=false;btn.textContent='⬇ Download Rx';}
 }
 
