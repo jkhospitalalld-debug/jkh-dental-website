@@ -75,6 +75,22 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 const BILLING_API = "https://jkh-billand-pres.jkhospitalalld.workers.dev";
 let STATE = { uhid:"", mobile:"", patient:null, bills:[], xrays:[], appts:[] };
 
+// If opened via a shared link with ?uhid=... (e.g. from the clinic's WhatsApp
+// message), pre-fill the UHID field so the patient only has to type their
+// mobile number.
+(function prefillUhidFromLink(){
+  const params = new URLSearchParams(window.location.search);
+  const uhidParam = params.get('uhid');
+  if (uhidParam) {
+    const uhidField = document.getElementById('uhid');
+    if (uhidField) {
+      uhidField.value = uhidParam;
+      const mobileField = document.getElementById('mobile');
+      if (mobileField) mobileField.focus();
+    }
+  }
+})();
+
 async function login(){
  const uhid = document.getElementById('uhid').value.trim();
  const mobile = document.getElementById('mobile').value.trim();
