@@ -34,6 +34,7 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 .badge.cancelled{background:#fbdada;color:#a11c1c}
 .appt-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .appt-actions button{width:auto;padding:8px 12px;font-size:12px;margin:0}
+.faq-item{background:#fff;border:1px solid #e3eeee;border-radius:12px;padding:14px;margin-bottom:10px}.faq-item h4{margin:0 0 6px;color:var(--navy);font-size:14px}.faq-item p{margin:4px 0;font-size:13px;white-space:pre-wrap}.faq-meta{font-size:11px;color:var(--muted);margin-bottom:8px}.faq-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.faq-actions button{width:auto;margin:0;padding:8px 12px;font-size:12px}.faq-edit{display:none;background:#f7fbfb;border-radius:10px;padding:12px;margin-top:10px}.faq-edit input,.faq-edit textarea,.faq-edit select{margin-bottom:8px}.faq-edit textarea{min-height:100px}
 </style>
 </head>
 <body>
@@ -54,7 +55,7 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 <div class="box" style="display:flex;gap:10px;padding:14px">
 <button id="tabCasesBtn" onclick="showTab('cases')" style="margin:0">Case Photos</button>
 <button id="tabApptBtn" onclick="showTab('appt')" class="secondary" style="margin:0">Appointments</button>
-<button id="tabVideosBtn" onclick="showTab('videos')" class="secondary" style="margin:0">Videos</button>
+<button id="tabVideosBtn" onclick="showTab('videos')" class="secondary" style="margin:0">Videos</button><button id="tabFaqBtn" onclick="showTab('faq')" class="secondary" style="margin:0">💬 FAQ Chat</button>
 </div>
 
 <div id="tabCases">
@@ -93,7 +94,7 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 <label>Existing Videos</label>
 <div id="videosList"><p style="color:var(--muted)">Loading...</p></div>
 </div>
-</div>
+<div id="tabFaq" style="display:none"><div class="box"><label>Question</label><input id="faqQuestion" type="text" placeholder="e.g. What are your clinic hours?"><label style="margin-top:12px">Answer</label><textarea id="faqAnswer" placeholder="Write the answer shown to patients..."></textarea><label>Category</label><input id="faqCategory" type="text" value="General"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label>Display Order</label><input id="faqOrder" type="number" value="0" min="0"></div><div><label>Active</label><select id="faqActive"><option value="1">Active</option><option value="0">Hidden</option></select></div></div><button onclick="addFaq()">➕ Add FAQ</button><p id="faqMsg"></p></div><div class="box"><label>Existing FAQs</label><div id="faqList"><p style="color:var(--muted)">Loading...</p></div></div></div>
 
 <button class="secondary" onclick="logout()">Logout</button>
 </div>
@@ -203,13 +204,22 @@ function showTab(tab){
  document.getElementById("tabCases").style.display=tab==="cases"?"block":"none";
  document.getElementById("tabAppt").style.display=tab==="appt"?"block":"none";
  document.getElementById("tabVideos").style.display=tab==="videos"?"block":"none";
+ document.getElementById("tabFaq").style.display=tab==="faq"?"block":"none";
  document.getElementById("tabCasesBtn").className=tab==="cases"?"":"secondary";
  document.getElementById("tabApptBtn").className=tab==="appt"?"":"secondary";
  document.getElementById("tabVideosBtn").className=tab==="videos"?"":"secondary";
+ document.getElementById("tabFaqBtn").className=tab==="faq"?"":"secondary";
  if(tab==="appt")loadAppointments();
  if(tab==="videos")loadVideos();
+ if(tab==="faq")loadFaqs();
 }
 
+async function loadFaqs(){const list=document.getElementById("faqList");list.innerHTML="Loading...";try{const r=await fetch("/api/admin/faqs",{headers:{"Authorization":"Bearer "+TOKEN}});if(!r.ok)throw 0;const data=await r.json();if(!data.length){list.innerHTML='<p style="color:var(--muted)">No FAQs yet.</p>';return}list.innerHTML=data.map(f=>`<div class="faq-item"><h4>${esc(f.question)}</h4><div class="faq-meta">${esc(f.category||"General")} · Order ${f.display_order||0} · ${f.active?"Active":"Hidden"}</div><p>${esc(f.answer)}</p><div class="faq-actions"><button class="secondary" onclick="toggleFaqEdit(${f.id})">✏️ Edit</button><button class="danger" onclick="deleteFaq(${f.id})">Delete</button></div><div class="faq-edit" id="faqEdit${f.id}"><input id="fq${f.id}" value="${escAttr(f.question)}"><textarea id="fa${f.id}">${esc(f.answer)}</textarea><input id="fc${f.id}" value="${escAttr(f.category||"General")}"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="fo${f.id}" type="number" value="${Number(f.display_order)||0}" min="0"><select id="fx${f.id}"><option value="1" ${f.active?"selected":""}>Active</option><option value="0" ${!f.active?"selected":""}>Hidden</option></select></div><div class="faq-actions"><button onclick="updateFaq(${f.id})">Save Changes</button><button class="secondary" onclick="toggleFaqEdit(${f.id})">Cancel</button></div></div></div>`).join("")}catch(e){list.innerHTML='<p style="color:#d64545">Could not load FAQs.</p>'}}
+function escAttr(s){return esc(s).replace(/`/g,"&#96;")}
+function toggleFaqEdit(id){const e=document.getElementById("faqEdit"+id);e.style.display=e.style.display==="block"?"none":"block"}
+async function addFaq(){const q=document.getElementById("faqQuestion").value.trim(),a=document.getElementById("faqAnswer").value.trim(),c=document.getElementById("faqCategory").value.trim()||"General",o=Number(document.getElementById("faqOrder").value)||0,active=document.getElementById("faqActive").value==="1",m=document.getElementById("faqMsg");if(!q||!a){m.style.color="#d64545";m.textContent="Question and answer are required.";return}m.style.color="var(--muted)";m.textContent="Saving...";try{const r=await fetch("/api/admin/faqs",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},body:JSON.stringify({question:q,answer:a,category:c,display_order:o,active})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Failed to add FAQ.");m.style.color="#18a85b";m.textContent="FAQ added.";document.getElementById("faqQuestion").value="";document.getElementById("faqAnswer").value="";document.getElementById("faqCategory").value="General";document.getElementById("faqOrder").value="0";document.getElementById("faqActive").value="1";loadFaqs()}catch(e){m.style.color="#d64545";m.textContent=e.message}}
+async function updateFaq(id){const q=document.getElementById("fq"+id).value.trim(),a=document.getElementById("fa"+id).value.trim(),c=document.getElementById("fc"+id).value.trim()||"General",o=Number(document.getElementById("fo"+id).value)||0,active=document.getElementById("fx"+id).value==="1";if(!q||!a){alert("Question and answer are required.");return}const r=await fetch("/api/admin/faqs/"+id,{method:"PATCH",headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},body:JSON.stringify({question:q,answer:a,category:c,display_order:o,active})});if(!r.ok){const d=await r.json().catch(()=>({}));alert(d.error||"Could not update FAQ.");return}loadFaqs()}
+async function deleteFaq(id){if(!confirm("Delete this FAQ?"))return;await fetch("/api/admin/faqs/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+TOKEN}});loadFaqs()}
 function extractYouTubeId(url){
  const patterns=[
   /(?:youtube\.com\/watch\?v=)([^&\s]+)/,

@@ -76,6 +76,26 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 .case-card{padding:0;overflow:hidden}
 .case-card img{width:100%;height:160px;object-fit:cover;display:block}
 .case-card .case-label{padding:12px 14px;font-weight:700;color:var(--navy);font-size:14px}
+
+/* FAQ Chat Assistant */
+#faqChatLauncher{position:fixed;right:18px;bottom:78px;z-index:1000;background:var(--teal);color:#fff;border:0;border-radius:30px;padding:13px 18px;font-weight:800;box-shadow:0 10px 28px rgba(0,0,0,.22);cursor:pointer}
+#faqChatBox{position:fixed;right:18px;bottom:130px;width:min(380px,calc(100vw - 28px));height:min(600px,calc(100vh - 155px));z-index:1001;background:#fff;border-radius:22px;box-shadow:0 18px 50px rgba(7,59,76,.25);display:none;overflow:hidden;border:1px solid #dceced}
+#faqChatHead{background:linear-gradient(135deg,var(--navy),var(--teal));color:#fff;padding:16px 18px;display:flex;align-items:center;justify-content:space-between}
+#faqChatHead strong{display:block;font-size:15px}
+#faqChatHead small{opacity:.9;font-size:11px}
+#faqChatClose{background:transparent;border:0;color:#fff;font-size:22px;cursor:pointer}
+#faqChatMessages{height:calc(100% - 128px);overflow:auto;padding:16px;background:#f6fbfb}
+.faq-msg{max-width:88%;padding:10px 13px;border-radius:15px;margin:0 0 10px;font-size:13px;line-height:1.45;white-space:pre-wrap}
+.faq-bot{background:#fff;color:var(--ink);border:1px solid #e1eeee;border-bottom-left-radius:5px}
+.faq-user{background:var(--teal);color:#fff;margin-left:auto;border-bottom-right-radius:5px}
+.faq-list-title{font-size:12px;font-weight:800;color:var(--navy);margin:8px 0}
+.faq-list{display:grid;gap:7px;margin-bottom:10px}
+.faq-question{width:100%;text-align:left;background:#fff;color:var(--navy);border:1px solid #d8e8e9;border-radius:12px;padding:9px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.faq-question:hover{border-color:var(--teal);color:var(--teal)}
+#faqChatInputRow{display:flex;gap:8px;padding:10px;background:#fff;border-top:1px solid #e5eeee}
+#faqChatInput{flex:1;border:1px solid #d8e4e6;border-radius:20px;padding:10px 13px;outline:none;font:inherit;font-size:13px}
+#faqChatSend{width:44px;border:0;border-radius:50%;background:var(--teal);color:#fff;font-weight:800;cursor:pointer}
+@media(max-width:600px){#faqChatLauncher{right:14px;bottom:74px}#faqChatBox{right:10px;bottom:72px;width:calc(100vw - 20px);height:min(620px,calc(100vh - 90px))}}
 </style>
 </head>
 <body>
@@ -231,6 +251,14 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 
 <a class="float" href="#appointment">💬 Appointment</a>
 
+<!-- J.K. Dental Assistant -->
+<button id="faqChatLauncher" type="button" onclick="openFaqChat()">💬 Ask J.K. Dental</button>
+<div id="faqChatBox" role="dialog" aria-label="J.K. Dental Assistant">
+  <div id="faqChatHead"><div><strong>🦷 J.K. Dental Assistant</strong><small>Frequently asked questions</small></div><button id="faqChatClose" type="button" onclick="closeFaqChat()" aria-label="Close">×</button></div>
+  <div id="faqChatMessages"></div>
+  <div id="faqChatInputRow"><input id="faqChatInput" type="text" placeholder="Type your question..." autocomplete="off"><button id="faqChatSend" type="button" onclick="askFaq()">➤</button></div>
+</div>
+
 <footer>
 © <span id="year"></span> J.K. Hospital Dental Care Center. All rights reserved.
 </footer>
@@ -326,6 +354,22 @@ async function sendAppointment(e){
   btn.disabled=false;btn.textContent="Book Appointment";
  }
 }
+</script>
+<script>
+// ---------- J.K. Dental Assistant FAQ ----------
+let FAQ_DATA=[];
+function addFaqBot(text){const b=document.getElementById("faqChatMessages"),d=document.createElement("div");d.className="faq-msg faq-bot";d.textContent=text;b.appendChild(d);b.scrollTop=b.scrollHeight}
+function addFaqUser(text){const b=document.getElementById("faqChatMessages"),d=document.createElement("div");d.className="faq-msg faq-user";d.textContent=text;b.appendChild(d);b.scrollTop=b.scrollHeight}
+function openFaqChat(){document.getElementById("faqChatBox").style.display="block";const m=document.getElementById("faqChatMessages");if(!m.dataset.started){m.dataset.started="1";addFaqBot("Hello! 👋 I’m J.K. Dental Assistant. Please choose a question below, or type your question.");loadFaqs()}setTimeout(()=>document.getElementById("faqChatInput").focus(),50)}
+function closeFaqChat(){document.getElementById("faqChatBox").style.display="none"}
+async function loadFaqs(){try{const r=await fetch("/api/faqs");if(!r.ok)throw 0;FAQ_DATA=await r.json();renderFaqList()}catch(e){addFaqBot("I’m unable to load the listed questions right now. Please try again later.")}}
+function renderFaqList(){const b=document.getElementById("faqChatMessages"),w=document.createElement("div");w.className="faq-msg faq-bot";w.innerHTML='<div class="faq-list-title">Listed questions:</div><div class="faq-list"></div>';const l=w.querySelector(".faq-list");if(!FAQ_DATA.length)l.innerHTML='<div style="color:var(--muted)">No questions are available right now.</div>';else FAQ_DATA.forEach(f=>{const q=document.createElement("button");q.className="faq-question";q.type="button";q.textContent=f.question;q.onclick=()=>selectFaq(f);l.appendChild(q)});b.appendChild(w);b.scrollTop=b.scrollHeight}
+function selectFaq(f){addFaqUser(f.question);setTimeout(()=>{addFaqBot(f.answer);setTimeout(renderFaqList,120)},180)}
+function norm(t){return String(t||"").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu," ").replace(/\s+/g," ").trim()}
+function findFaq(q){q=norm(q);if(!q)return null;let best=null,bs=0;FAQ_DATA.forEach(f=>{const fq=norm(f.question);if(q===fq){best=f;bs=999;return}if(bs===999)return;const qw=new Set(q.split(" ").filter(x=>x.length>2)),fw=new Set(fq.split(" ").filter(x=>x.length>2));let n=0;qw.forEach(x=>{if(fw.has(x))n++});const score=n/Math.max(1,Math.min(qw.size,fw.size));if(n>=2&&score>bs){best=f;bs=score}});return best}
+function askFaq(){const i=document.getElementById("faqChatInput"),q=i.value.trim();if(!q)return;i.value="";addFaqUser(q);const f=findFaq(q);setTimeout(()=>{if(f)addFaqBot(f.answer);else addFaqBot("Sorry, I couldn’t find an answer to that question. Please click one of the listed questions above.");setTimeout(renderFaqList,120)},180)}
+document.getElementById("faqChatInput").addEventListener("keydown",e=>{if(e.key==="Enter")askFaq()});
+
 </script>
 <script>
 if ("serviceWorker" in navigator) {
