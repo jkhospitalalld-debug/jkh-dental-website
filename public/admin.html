@@ -94,12 +94,11 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 <label>Existing Videos</label>
 <div id="videosList"><p style="color:var(--muted)">Loading...</p></div>
 </div>
+</div>
 
 <div id="tabFaq" style="display:none"><div class="box"><label>Question</label><input id="faqQuestion" type="text" placeholder="e.g. What are your clinic hours?"><label style="margin-top:12px">Answer</label><textarea id="faqAnswer" placeholder="Write the answer shown to patients..."></textarea><label>Category</label><input id="faqCategory" type="text" value="General"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label>Display Order</label><input id="faqOrder" type="number" value="0" min="0"></div><div><label>Active</label><select id="faqActive"><option value="1">Active</option><option value="0">Hidden</option></select></div></div><button onclick="addFaq()">➕ Add FAQ</button><p id="faqMsg"></p></div><div class="box"><label>Existing FAQs</label><div id="faqList"><p style="color:var(--muted)">Loading...</p></div></div></div>
 
-
 <button class="secondary" onclick="logout()">Logout</button>
-</div>
 </div>
 
 <script>
