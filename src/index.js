@@ -170,6 +170,100 @@ export default {
       return json({ ok: true });
     }
 
+
+    // Public: list active FAQ questions and answers
+    if (path === "/api/faqs" && request.method === "GET") {
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT id, question, answer, category, sort_order FROM faqs WHERE active = 1 ORDER BY sort_order ASC, id ASC"
+        ).all();
+        return json(results);
+      } catch (err) {
+        // Keeps the website working if the FAQ table has not been created yet.
+        return json({ error: "FAQ system is not configured yet." }, 503);
+      }
+    }
+
+    // Admin: list all FAQs
+    if (path === "/api/admin/faqs" && request.method === "GET") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT id, question, answer, category, active, sort_order, created_at, updated_at FROM faqs ORDER BY sort_order ASC, id ASC"
+        ).all();
+        return json(results);
+      } catch (err) {
+        return json({ error: "FAQ table not found. Create the faqs table first." }, 503);
+      }
+    }
+
+    // Admin: add FAQ
+    if (path === "/api/admin/faqs" && request.method === "POST") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const body = await request.json();
+      if (!body.question || !body.answer) {
+        return json({ error: "question and answer required" }, 400);
+      }
+      const now = Date.now();
+      try {
+        await env.DB.prepare(
+          "INSERT INTO faqs (question, answer, category, active, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        ).bind(
+          body.question.trim(),
+          body.answer.trim(),
+          (body.category || "General").trim(),
+          body.active === false ? 0 : 1,
+          Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
+          now,
+          now
+        ).run();
+        return json({ ok: true });
+      } catch (err) {
+        return json({ error: "Could not save FAQ. Make sure the faqs table exists." }, 503);
+      }
+    }
+
+    // Admin: update FAQ
+    const faqMatch = path.match(/^\/api\/admin\/faqs\/(\d+)$/);
+    if (faqMatch && request.method === "PATCH") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const body = await request.json();
+      if (!body.question || !body.answer) {
+        return json({ error: "question and answer required" }, 400);
+      }
+      try {
+        await env.DB.prepare(
+          "UPDATE faqs SET question = ?, answer = ?, category = ?, active = ?, sort_order = ?, updated_at = ? WHERE id = ?"
+        ).bind(
+          body.question.trim(),
+          body.answer.trim(),
+          (body.category || "General").trim(),
+          body.active === false ? 0 : 1,
+          Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
+          Date.now(),
+          faqMatch[1]
+        ).run();
+        return json({ ok: true });
+      } catch (err) {
+        return json({ error: "Could not update FAQ." }, 503);
+      }
+    }
+
+    // Admin: delete FAQ
+    if (faqMatch && request.method === "DELETE") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      try {
+        await env.DB.prepare("DELETE FROM faqs WHERE id = ?").bind(faqMatch[1]).run();
+        return json({ ok: true });
+      } catch (err) {
+        return json({ error: "Could not delete FAQ." }, 503);
+      }
+    }
+
     // Everything else -> static assets (index.html, admin.html, assets/*)
     return env.ASSETS.fetch(request);
   },
