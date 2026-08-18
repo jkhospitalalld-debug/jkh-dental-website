@@ -175,7 +175,7 @@ export default {
     if (path === "/api/faqs" && request.method === "GET") {
       try {
         const { results } = await env.DB.prepare(
-          "SELECT id, question, answer, category, sort_order FROM faqs WHERE active = 1 ORDER BY sort_order ASC, id ASC"
+          "SELECT id, question, answer, category, display_order FROM faqs WHERE active = 1 ORDER BY display_order ASC, id ASC"
         ).all();
         return json(results);
       } catch (err) {
@@ -190,7 +190,7 @@ export default {
       if (authErr) return authErr;
       try {
         const { results } = await env.DB.prepare(
-          "SELECT id, question, answer, category, active, sort_order, created_at, updated_at FROM faqs ORDER BY sort_order ASC, id ASC"
+          "SELECT id, question, answer, category, active, display_order, created_at, updated_at FROM faqs ORDER BY display_order ASC, id ASC"
         ).all();
         return json(results);
       } catch (err) {
@@ -209,13 +209,13 @@ export default {
       const now = Date.now();
       try {
         await env.DB.prepare(
-          "INSERT INTO faqs (question, answer, category, active, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO faqs (question, answer, category, active, display_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
         ).bind(
           body.question.trim(),
           body.answer.trim(),
           (body.category || "General").trim(),
           body.active === false ? 0 : 1,
-          Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
+          Number.isFinite(Number(body.display_order)) ? Number(body.display_order) : 0,
           now,
           now
         ).run();
@@ -236,13 +236,13 @@ export default {
       }
       try {
         await env.DB.prepare(
-          "UPDATE faqs SET question = ?, answer = ?, category = ?, active = ?, sort_order = ?, updated_at = ? WHERE id = ?"
+          "UPDATE faqs SET question = ?, answer = ?, category = ?, active = ?, display_order = ?, updated_at = ? WHERE id = ?"
         ).bind(
           body.question.trim(),
           body.answer.trim(),
           (body.category || "General").trim(),
           body.active === false ? 0 : 1,
-          Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
+          Number.isFinite(Number(body.display_order)) ? Number(body.display_order) : 0,
           Date.now(),
           faqMatch[1]
         ).run();
