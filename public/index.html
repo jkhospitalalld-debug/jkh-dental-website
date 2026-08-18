@@ -358,21 +358,121 @@ async function sendAppointment(e){
 <script>
 // ---------- J.K. Dental Assistant FAQ ----------
 let FAQ_DATA=[];
-function scrollFaqToBottom(){
+
+function addFaqBot(text){
   const b=document.getElementById("faqChatMessages");
-  if(!b)return;
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{b.scrollTop=b.scrollHeight;}));
+  const d=document.createElement("div");
+  d.className="faq-msg faq-bot";
+  d.textContent=text;
+  b.appendChild(d);
+  return d;
 }
-function addFaqBot(text){const b=document.getElementById("faqChatMessages"),d=document.createElement("div");d.className="faq-msg faq-bot";d.textContent=text;b.appendChild(d);scrollFaqToBottom()}
-function addFaqUser(text){const b=document.getElementById("faqChatMessages"),d=document.createElement("div");d.className="faq-msg faq-user";d.textContent=text;b.appendChild(d);scrollFaqToBottom()}
-function openFaqChat(){document.getElementById("faqChatBox").style.display="block";const m=document.getElementById("faqChatMessages");if(!m.dataset.started){m.dataset.started="1";addFaqBot("Hello! 👋 I’m J.K. Dental Assistant. Please choose a question below, or type your question.");loadFaqs()}setTimeout(()=>document.getElementById("faqChatInput").focus(),50)}
+
+function addFaqUser(text){
+  const b=document.getElementById("faqChatMessages");
+  const d=document.createElement("div");
+  d.className="faq-msg faq-user";
+  d.textContent=text;
+  b.appendChild(d);
+  return d;
+}
+
+function keepAnswerVisible(answer){
+  if(!answer)return;
+  requestAnimationFrame(()=>{
+    answer.scrollIntoView({block:"nearest",behavior:"auto"});
+  });
+}
+
+function openFaqChat(){
+  document.getElementById("faqChatBox").style.display="block";
+  const m=document.getElementById("faqChatMessages");
+  if(!m.dataset.started){
+    m.dataset.started="1";
+    addFaqBot("Hello! 👋 I’m J.K. Dental Assistant. Please choose a question below, or type your question.");
+    loadFaqs();
+  }
+  setTimeout(()=>document.getElementById("faqChatInput").focus(),50);
+}
+
 function closeFaqChat(){document.getElementById("faqChatBox").style.display="none"}
-async function loadFaqs(){try{const r=await fetch("/api/faqs");if(!r.ok)throw 0;FAQ_DATA=await r.json();renderFaqList()}catch(e){addFaqBot("I’m unable to load the listed questions right now. Please try again later.")}}
-function renderFaqList(){const b=document.getElementById("faqChatMessages"),w=document.createElement("div");w.className="faq-msg faq-bot";w.innerHTML='<div class="faq-list-title">Listed questions:</div><div class="faq-list"></div>';const l=w.querySelector(".faq-list");if(!FAQ_DATA.length)l.innerHTML='<div style="color:var(--muted)">No questions are available right now.</div>';else FAQ_DATA.forEach(f=>{const q=document.createElement("button");q.className="faq-question";q.type="button";q.textContent=f.question;q.onclick=()=>selectFaq(f);l.appendChild(q)});b.appendChild(w);scrollFaqToBottom()}
-function selectFaq(f){addFaqUser(f.question);setTimeout(()=>{addFaqBot(f.answer);scrollFaqToBottom();setTimeout(renderFaqList,120)},180)}
+
+async function loadFaqs(){
+  try{
+    const r=await fetch("/api/faqs");
+    if(!r.ok)throw 0;
+    FAQ_DATA=await r.json();
+    renderFaqList();
+  }catch(e){
+    addFaqBot("I’m unable to load the listed questions right now. Please try again later.");
+  }
+}
+
+function renderFaqList(){
+  const b=document.getElementById("faqChatMessages");
+  const w=document.createElement("div");
+  w.className="faq-msg faq-bot";
+  w.innerHTML='<div class="faq-list-title">Listed questions:</div><div class="faq-list"></div>';
+  const l=w.querySelector(".faq-list");
+  if(!FAQ_DATA.length){
+    l.innerHTML='<div style="color:var(--muted)">No questions are available right now.</div>';
+  }else{
+    FAQ_DATA.forEach(f=>{
+      const q=document.createElement("button");
+      q.className="faq-question";
+      q.type="button";
+      q.textContent=f.question;
+      q.onclick=()=>selectFaq(f);
+      l.appendChild(q);
+    });
+  }
+  b.appendChild(w);
+}
+
+function selectFaq(f){
+  addFaqUser(f.question);
+  setTimeout(()=>{
+    const answer=addFaqBot(f.answer);
+    setTimeout(()=>{
+      renderFaqList();
+      keepAnswerVisible(answer);
+    },120);
+  },180);
+}
+
 function norm(t){return String(t||"").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu," ").replace(/\s+/g," ").trim()}
-function findFaq(q){q=norm(q);if(!q)return null;let best=null,bs=0;FAQ_DATA.forEach(f=>{const fq=norm(f.question);if(q===fq){best=f;bs=999;return}if(bs===999)return;const qw=new Set(q.split(" ").filter(x=>x.length>2)),fw=new Set(fq.split(" ").filter(x=>x.length>2));let n=0;qw.forEach(x=>{if(fw.has(x))n++});const score=n/Math.max(1,Math.min(qw.size,fw.size));if(n>=2&&score>bs){best=f;bs=score}});return best}
-function askFaq(){const i=document.getElementById("faqChatInput"),q=i.value.trim();if(!q)return;i.value="";addFaqUser(q);const f=findFaq(q);setTimeout(()=>{if(f)addFaqBot(f.answer);else addFaqBot("Sorry, I couldn’t find an answer to that question. Please click one of the listed questions above.");setTimeout(renderFaqList,120)},180)}
+
+function findFaq(q){
+  q=norm(q);if(!q)return null;
+  let best=null,bs=0;
+  FAQ_DATA.forEach(f=>{
+    const fq=norm(f.question);
+    if(q===fq){best=f;bs=999;return}
+    if(bs===999)return;
+    const qw=new Set(q.split(" ").filter(x=>x.length>2));
+    const fw=new Set(fq.split(" ").filter(x=>x.length>2));
+    let n=0;qw.forEach(x=>{if(fw.has(x))n++});
+    const score=n/Math.max(1,Math.min(qw.size,fw.size));
+    if(n>=2&&score>bs){best=f;bs=score}
+  });
+  return best;
+}
+
+function askFaq(){
+  const i=document.getElementById("faqChatInput"),q=i.value.trim();
+  if(!q)return;
+  i.value="";
+  addFaqUser(q);
+  const f=findFaq(q);
+  setTimeout(()=>{
+    const answer=addFaqBot(f?f.answer:"Sorry, I couldn’t find an answer to that question. Please click one of the listed questions above.");
+    setTimeout(()=>{
+      renderFaqList();
+      keepAnswerVisible(answer);
+    },120);
+  },180);
+}
+
 document.getElementById("faqChatInput").addEventListener("keydown",e=>{if(e.key==="Enter")askFaq()});
 
 </script>
