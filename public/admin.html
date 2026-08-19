@@ -75,6 +75,11 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 </div>
 
 <div id="tabAppt" style="display:none">
+<div class="box" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+<label style="font-weight:700;font-size:13px;color:var(--navy);margin:0">View appointments for:</label>
+<input id="apptDateFilter" type="date" style="width:auto">
+<button onclick="setApptDateToday()" class="secondary" style="width:auto;margin:0">Today</button>
+</div>
 <div class="box">
 <label>Appointment Requests</label>
 <div id="apptList"><p style="color:var(--muted)">Loading...</p></div>
@@ -272,39 +277,45 @@ async function delVideo(id){
 
 async function loadAppointments(){
  const list=document.getElementById("apptList");
+ const dateInput=document.getElementById("apptDateFilter");
+ if(!dateInput.value) dateInput.value=new Date().toISOString().slice(0,10);
+ const selectedDate=dateInput.value;
+ const todayStr=new Date().toISOString().slice(0,10);
  list.innerHTML="Loading...";
  const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN}});
  const data=await res.json();
- const todayStr=new Date().toISOString().slice(0,10);
- const websiteToday=data.filter(a=>a.pref_date===todayStr && a.status!=='cancelled').map(a=>({
+ const websiteSelected=data.filter(a=>a.pref_date===selectedDate && a.status!=='cancelled').map(a=>({
   name:a.name,phone:a.phone,patientType:a.patient_type,service:a.service,time:a.pref_time,source:'Requested online'
  }));
- let billingToday=[];
+ let billingSelected=[];
  try{
   const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients");
   if(bres.ok){
    const patients=await bres.json();
    patients.forEach(p=>{
     (p.visits||[]).forEach(v=>{
-     if(v.next===todayStr){
-      billingToday.push({name:p.form?.name||'Patient',phone:'',patientType:'',service:'Follow-up visit',time:'',source:'Scheduled by doctor (UHID: '+p.id+')'});
+     if(v.next===selectedDate){
+      billingSelected.push({name:p.form?.name||'Patient',phone:'',patientType:'',service:'Follow-up visit',time:'',source:'Scheduled by doctor (UHID: '+p.id+')'});
      }
     });
    });
   }
  }catch(e){}
- const todays=[...websiteToday,...billingToday].sort((a,b)=>(a.time||'zz').localeCompare(b.time||'zz'));
- updateApptBadge(todays.length);
- if(!data.length && !todays.length){list.innerHTML='<p style="color:var(--muted)">No appointment requests yet.</p>';return;}
+ const selectedList=[...websiteSelected,...billingSelected].sort((a,b)=>(a.time||'zz').localeCompare(b.time||'zz'));
+ if(selectedDate===todayStr) updateApptBadge(selectedList.length);
+ if(!data.length && !selectedList.length){list.innerHTML='<p style="color:var(--muted)">No appointment requests yet.</p>';return;}
  let html='';
- if(todays.length){
+ const dateLabel=selectedDate===todayStr?"Today's":new Date(selectedDate+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+"'s";
+ if(selectedList.length){
   html+=`<div style="background:#fff3cd;border:1px solid #ffe69c;border-radius:12px;padding:14px;margin-bottom:16px">
-   <h4 style="margin:0 0 10px;color:#7a5b00">🔔 Today's Appointments (${todayStr}) — ${todays.length}</h4>
-   ${todays.map(a=>`<div style="padding:8px 0;border-top:1px solid #ffe69c;display:flex;justify-content:space-between;gap:10px">
+   <h4 style="margin:0 0 10px;color:#7a5b00">🔔 ${dateLabel} Appointments (${selectedDate}) — ${selectedList.length}</h4>
+   ${selectedList.map(a=>`<div style="padding:8px 0;border-top:1px solid #ffe69c;display:flex;justify-content:space-between;gap:10px">
     <span><b>${esc(a.name)}</b> — ${esc(a.service||'-')}<br><span style="font-size:12px;color:#7a5b00">${a.phone?'📞 '+esc(a.phone)+' • ':''}${esc(a.patientType||'')} ${esc(a.source)}</span></span>
     <span style="font-weight:800;color:#7a5b00">${a.time?'🕒 '+esc(a.time):''}</span>
    </div>`).join('')}
   </div>`;
+ }else{
+  html+=`<div style="background:#f0f4f4;border-radius:12px;padding:14px;margin-bottom:16px;text-align:center;color:var(--muted)">No appointments found for ${selectedDate}.</div>`;
  }
  html+=data.map(a=>`
   <div class="appt-card">
@@ -344,6 +355,12 @@ async function fetchApptBadgeCount(){
   updateApptBadge(count);
  }catch(e){}
 }
+
+function setApptDateToday(){
+ document.getElementById("apptDateFilter").value=new Date().toISOString().slice(0,10);
+ loadAppointments();
+}
+document.getElementById("apptDateFilter").addEventListener("change",loadAppointments);
 
 function updateApptBadge(count){
  const btn=document.getElementById("tabApptBtn");
