@@ -276,16 +276,33 @@ async function loadAppointments(){
  const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN}});
  const data=await res.json();
  const todayStr=new Date().toISOString().slice(0,10);
- const todays=data.filter(a=>a.pref_date===todayStr && a.status!=='cancelled').sort((a,b)=>(a.pref_time||'').localeCompare(b.pref_time||''));
+ const websiteToday=data.filter(a=>a.pref_date===todayStr && a.status!=='cancelled').map(a=>({
+  name:a.name,phone:a.phone,patientType:a.patient_type,service:a.service,time:a.pref_time,source:'Requested online'
+ }));
+ let billingToday=[];
+ try{
+  const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients");
+  if(bres.ok){
+   const patients=await bres.json();
+   patients.forEach(p=>{
+    (p.visits||[]).forEach(v=>{
+     if(v.next===todayStr){
+      billingToday.push({name:p.form?.name||'Patient',phone:'',patientType:'',service:'Follow-up visit',time:'',source:'Scheduled by doctor (UHID: '+p.id+')'});
+     }
+    });
+   });
+  }
+ }catch(e){}
+ const todays=[...websiteToday,...billingToday].sort((a,b)=>(a.time||'zz').localeCompare(b.time||'zz'));
  updateApptBadge(todays.length);
- if(!data.length){list.innerHTML='<p style="color:var(--muted)">No appointment requests yet.</p>';return;}
+ if(!data.length && !todays.length){list.innerHTML='<p style="color:var(--muted)">No appointment requests yet.</p>';return;}
  let html='';
  if(todays.length){
   html+=`<div style="background:#fff3cd;border:1px solid #ffe69c;border-radius:12px;padding:14px;margin-bottom:16px">
    <h4 style="margin:0 0 10px;color:#7a5b00">🔔 Today's Appointments (${todayStr}) — ${todays.length}</h4>
    ${todays.map(a=>`<div style="padding:8px 0;border-top:1px solid #ffe69c;display:flex;justify-content:space-between;gap:10px">
-    <span><b>${esc(a.name)}</b> — ${esc(a.service||'-')}<br><span style="font-size:12px;color:#7a5b00">📞 ${esc(a.phone)} • ${esc(a.patient_type||'-')}</span></span>
-    <span style="font-weight:800;color:#7a5b00">🕒 ${esc(a.pref_time||'-')}</span>
+    <span><b>${esc(a.name)}</b> — ${esc(a.service||'-')}<br><span style="font-size:12px;color:#7a5b00">${a.phone?'📞 '+esc(a.phone)+' • ':''}${esc(a.patientType||'')} ${esc(a.source)}</span></span>
+    <span style="font-weight:800;color:#7a5b00">${a.time?'🕒 '+esc(a.time):''}</span>
    </div>`).join('')}
   </div>`;
  }
@@ -316,7 +333,14 @@ async function fetchApptBadgeCount(){
   const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN}});
   const data=await res.json();
   const todayStr=new Date().toISOString().slice(0,10);
-  const count=data.filter(a=>a.pref_date===todayStr && a.status!=='cancelled').length;
+  let count=data.filter(a=>a.pref_date===todayStr && a.status!=='cancelled').length;
+  try{
+   const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients");
+   if(bres.ok){
+    const patients=await bres.json();
+    patients.forEach(p=>(p.visits||[]).forEach(v=>{if(v.next===todayStr)count++;}));
+   }
+  }catch(e){}
   updateApptBadge(count);
  }catch(e){}
 }
