@@ -107,22 +107,26 @@ async function login(){
   const patient = patientRes.ok ? await patientRes.json() : null;
   const bills = billsRes.ok ? await billsRes.json() : [];
   const matchedBill = bills.find(b => (b.phone||"").replace(/\D/g,"").slice(-10) === mobile);
+  const patientMobileMatch = patient && (patient.form?.mobile||"").replace(/\D/g,"").slice(-10) === mobile;
   if(!patient && !matchedBill){
    err.textContent="No record found for this UHID. Please check and try again, or contact the clinic.";
    btn.disabled=false; btn.textContent="Continue";
    return;
   }
-  if(!matchedBill){
-   err.textContent="Mobile number does not match our billing records for this UHID. Please contact the clinic if this seems wrong.";
+  if(!matchedBill && !patientMobileMatch){
+   err.textContent="Mobile number does not match our records for this UHID. Please contact the clinic if this seems wrong.";
    btn.disabled=false; btn.textContent="Continue";
    return;
   }
+  const displayName=matchedBill?.name||patient?.form?.name||'Patient';
+  const displayAge=matchedBill?.age||patient?.form?.age||'-';
+  const displaySex=matchedBill?.sex||patient?.form?.sex||'-';
   STATE.uhid=uhid; STATE.mobile=mobile; STATE.patient=patient; STATE.bills=bills;
-  document.getElementById('welcome').textContent='Welcome, '+(matchedBill.name||patient?.form?.name||'Patient');
+  document.getElementById('welcome').textContent='Welcome, '+displayName;
   document.getElementById('showUhid').textContent='UHID: '+uhid;
-  document.getElementById('pn').textContent=matchedBill.name||patient?.form?.name||'-';
+  document.getElementById('pn').textContent=displayName;
   document.getElementById('pm').textContent=mobile;
-  document.getElementById('pas').textContent=(matchedBill.age||patient?.form?.age||'-')+' / '+(matchedBill.sex||patient?.form?.sex||'-');
+  document.getElementById('pas').textContent=displayAge+' / '+displaySex;
   document.getElementById('pu').textContent=uhid;
   document.getElementById('login').classList.remove('active');
   document.getElementById('portal').classList.add('active');
