@@ -117,8 +117,8 @@ async function login(){
  btn.disabled=true; btn.textContent="Checking...";
  try{
   const [patientRes, billsRes] = await Promise.all([
-   fetch(`${BILLING_API}/api/patients/${encodeURIComponent(uhid)}`),
-   fetch(`${BILLING_API}/api/bills/by-patient/${encodeURIComponent(uhid)}`)
+   fetch(`${BILLING_API}/api/patients/${encodeURIComponent(uhid)}`,{cache:"no-store"}),
+   fetch(`${BILLING_API}/api/bills/by-patient/${encodeURIComponent(uhid)}`,{cache:"no-store"})
   ]);
   const patient = patientRes.ok ? await patientRes.json() : null;
   const bills = billsRes.ok ? await billsRes.json() : [];
@@ -188,7 +188,7 @@ function renderNextAppointment(){
 async function loadAppointments(){
  const list=document.getElementById('apptList');
  try{
-  const res=await fetch(`/api/appointments/by-phone?phone=${STATE.mobile}`);
+  const res=await fetch(`/api/appointments/by-phone?phone=${STATE.mobile}`,{cache:"no-store"});
   const appts=await res.json();
   STATE.appts=appts;
   document.getElementById('statUpcoming').textContent=appts.filter(a=>a.status!=='cancelled').length;
@@ -318,7 +318,7 @@ async function downloadSelectedBills(){
 async function loadXrays(){
  const el=document.getElementById('xrayGrid');
  try{
-  const res=await fetch(`${BILLING_API}/api/xrays/${encodeURIComponent(STATE.uhid)}`);
+  const res=await fetch(`${BILLING_API}/api/xrays/${encodeURIComponent(STATE.uhid)}`,{cache:"no-store"});
   const xrays=res.ok?await res.json():[];
   STATE.xrays=xrays;
   if(!xrays.length){el.innerHTML='<p class="mut">No X-rays on record.</p>';return;}
@@ -420,11 +420,34 @@ async function downloadRxPDF(){
 
 function show(id){document.querySelectorAll('.content').forEach(x=>x.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('sel',x.dataset.id===id));if(id==='chat')loadChat();}
 
+document.addEventListener('visibilitychange',()=>{
+ if(document.visibilityState==='visible' && STATE.uhid){
+  refreshPatientData();
+ }
+});
+
+async function refreshPatientData(){
+ try{
+  const [patientRes, billsRes] = await Promise.all([
+   fetch(`${BILLING_API}/api/patients/${encodeURIComponent(STATE.uhid)}`,{cache:"no-store"}),
+   fetch(`${BILLING_API}/api/bills/by-patient/${encodeURIComponent(STATE.uhid)}`,{cache:"no-store"})
+  ]);
+  if(patientRes.ok) STATE.patient=await patientRes.json();
+  if(billsRes.ok) STATE.bills=await billsRes.json();
+  await loadAppointments();
+  loadTreatment();
+  renderNextAppointment();
+  loadPrescriptions();
+  loadBills();
+  loadXrays();
+ }catch(e){}
+}
+
 let chatPollTimer=null;
 async function loadChat(){
  const thread=document.getElementById('chatThread');
  try{
-  const res=await fetch(`/api/messages/by-patient?uhid=${encodeURIComponent(STATE.uhid)}&phone=${STATE.mobile}`);
+  const res=await fetch(`/api/messages/by-patient?uhid=${encodeURIComponent(STATE.uhid)}&phone=${STATE.mobile}`,{cache:"no-store"});
   const msgs=await res.json();
   if(!msgs.length){
    thread.innerHTML='<p class="mut" style="text-align:center">No messages yet. Ask your question below.</p>';

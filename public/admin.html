@@ -456,14 +456,14 @@ async function loadAppointments(){
  const selectedDate=dateInput.value;
  const todayStr=new Date().toISOString().slice(0,10);
  list.innerHTML="Loading...";
- const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN}});
+ const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN},cache:"no-store"});
  const data=await res.json();
  const websiteSelected=data.filter(a=>a.pref_date===selectedDate && a.status!=='cancelled').map(a=>({
   name:a.name,phone:a.phone,patientType:a.patient_type,service:a.service,time:a.pref_time,source:'Requested online'
  }));
  let billingSelected=[];
  try{
-  const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients");
+  const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients",{cache:"no-store"});
   if(bres.ok){
    const patients=await bres.json();
    patients.forEach(p=>{
@@ -515,12 +515,12 @@ async function loadAppointments(){
 
 async function fetchApptBadgeCount(){
  try{
-  const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN}});
+  const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN},cache:"no-store"});
   const data=await res.json();
   const todayStr=new Date().toISOString().slice(0,10);
   let count=data.filter(a=>a.pref_date===todayStr && a.status!=='cancelled').length;
   try{
-   const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients");
+   const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients",{cache:"no-store"});
    if(bres.ok){
     const patients=await bres.json();
     patients.forEach(p=>(p.visits||[]).forEach(v=>{if(v.next===todayStr)count++;}));
