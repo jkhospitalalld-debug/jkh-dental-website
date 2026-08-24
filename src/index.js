@@ -84,6 +84,115 @@ export default {
       return json({ ok: true });
     }
 
+    // Public: patient sends a message to the clinic
+    if (path === "/api/messages" && request.method === "POST") {
+      const body = await request.json();
+      if (!body.uhid || !body.phone || !body.message) return json({ error: "uhid, phone and message required" }, 400);
+      await env.DB.prepare(
+        "INSERT INTO patient_messages (uhid, phone, patient_name, sender, message, read_by_admin, created_at) VALUES (?, ?, ?, 'patient', ?, 0, ?)"
+      ).bind(body.uhid, body.phone, body.patient_name || "", body.message, Date.now()).run();
+
+      // Fire a push notification to the admin (best-effort, never blocks the response)
+      try {
+        const { results: subs } = await env.DB.prepare("SELECT * FROM push_subscriptions").all();
+        if (subs.length && env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
+          const payload = JSON.stringify({
+            title: "New patient message",
+            body: `${body.patient_name || "A patient"} (UHID: ${body.uhid}) sent a query.`,
+            url: "/admin.html",
+          });
+          for (const sub of subs) {
+            try {
+              await sendWebPush(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                payload,
+                env.VAPID_PUBLIC_KEY,
+                env.VAPID_PRIVATE_KEY
+              );
+            } catch (e) {
+              if (e && (e.status === 404 || e.status === 410)) {
+                await env.DB.prepare("DELETE FROM push_subscriptions WHERE id = ?").bind(sub.id).run();
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      return json({ ok: true });
+    }
+
+    // Public: patient fetches their own message thread
+    if (path === "/api/messages/by-patient" && request.method === "GET") {
+      const uhid = url.searchParams.get("uhid");
+      const phone = (url.searchParams.get("phone") || "").replace(/\D/g, "").slice(-10);
+      if (!uhid || !phone) return json({ error: "uhid and phone required" }, 400);
+      const { results } = await env.DB.prepare(
+        "SELECT id, sender, message, created_at FROM patient_messages WHERE uhid = ? AND phone LIKE ? ORDER BY created_at ASC"
+      ).bind(uhid, "%" + phone).all();
+      return json(results);
+    }
+
+    // Admin: list all conversations (grouped by uhid, latest message + unread count)
+    if (path === "/api/admin/messages" && request.method === "GET") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const { results } = await env.DB.prepare(
+        "SELECT * FROM patient_messages ORDER BY created_at ASC"
+      ).all();
+      const byUhid = {};
+      for (const m of results) {
+        if (!byUhid[m.uhid]) byUhid[m.uhid] = { uhid: m.uhid, phone: m.phone, patient_name: m.patient_name, messages: [], unread: 0 };
+        byUhid[m.uhid].phone = m.phone || byUhid[m.uhid].phone;
+        byUhid[m.uhid].patient_name = m.patient_name || byUhid[m.uhid].patient_name;
+        byUhid[m.uhid].messages.push(m);
+        if (m.sender === "patient" && !m.read_by_admin) byUhid[m.uhid].unread++;
+      }
+      const conversations = Object.values(byUhid).sort((a, b) => {
+        const aLast = a.messages[a.messages.length - 1]?.created_at || 0;
+        const bLast = b.messages[b.messages.length - 1]?.created_at || 0;
+        return bLast - aLast;
+      });
+      return json(conversations);
+    }
+
+    // Admin: reply to a patient + mark thread read
+    const msgReplyMatch = path.match(/^\/api\/admin\/messages\/([^/]+)$/);
+    if (msgReplyMatch && request.method === "POST") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const uhid = decodeURIComponent(msgReplyMatch[1]);
+      const body = await request.json();
+      if (!body.message || !body.phone) return json({ error: "message and phone required" }, 400);
+      await env.DB.prepare(
+        "INSERT INTO patient_messages (uhid, phone, patient_name, sender, message, read_by_admin, created_at) VALUES (?, ?, ?, 'admin', ?, 1, ?)"
+      ).bind(uhid, body.phone, body.patient_name || "", body.message, Date.now()).run();
+      await env.DB.prepare(
+        "UPDATE patient_messages SET read_by_admin = 1 WHERE uhid = ?"
+      ).bind(uhid).run();
+      return json({ ok: true });
+    }
+
+    // Admin: mark a conversation as read (without replying)
+    if (msgReplyMatch && request.method === "PATCH") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const uhid = decodeURIComponent(msgReplyMatch[1]);
+      await env.DB.prepare("UPDATE patient_messages SET read_by_admin = 1 WHERE uhid = ?").bind(uhid).run();
+      return json({ ok: true });
+    }
+
+    // Admin: save a push notification subscription for this device
+    if (path === "/api/push/subscribe" && request.method === "POST") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const body = await request.json();
+      if (!body.endpoint || !body.keys) return json({ error: "invalid subscription" }, 400);
+      await env.DB.prepare(
+        "INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(endpoint) DO NOTHING"
+      ).bind(body.endpoint, body.keys.p256dh, body.keys.auth, Date.now()).run();
+      return json({ ok: true });
+    }
+
     // Public: check booked time slots for a date (no personal info exposed)
     if (path === "/api/appointments/by-date" && request.method === "GET") {
       const date = url.searchParams.get("date");
@@ -283,4 +392,127 @@ function json(data, status = 200) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/* ---------------------------------------------------------
+   WEB PUSH — sends real push notifications using native
+   Web Crypto (no external library). Implements RFC 8291
+   (message encryption) and RFC 8292 (VAPID auth).
+--------------------------------------------------------- */
+function b64urlToBytes(str) {
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (str.length % 4) str += "=";
+  const bin = atob(str);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function bytesToB64url(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function concatBytes(...arrs) {
+  const total = arrs.reduce((s, a) => s + a.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const a of arrs) { out.set(a, off); off += a.length; }
+  return out;
+}
+
+async function createVapidAuthHeader(audience, vapidPublicKeyB64, vapidPrivateKeyB64) {
+  const pubBytes = b64urlToBytes(vapidPublicKeyB64); // 65 bytes: 0x04 || x(32) || y(32)
+  const x = pubBytes.slice(1, 33), y = pubBytes.slice(33, 65);
+  const d = b64urlToBytes(vapidPrivateKeyB64);
+  const jwk = { kty: "EC", crv: "P-256", x: bytesToB64url(x), y: bytesToB64url(y), d: bytesToB64url(d), ext: true };
+  const privateKey = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+
+  const header = { typ: "JWT", alg: "ES256" };
+  const exp = Math.floor(Date.now() / 1000) + 12 * 3600;
+  const claims = { aud: audience, exp, sub: "mailto:jkhospitalalld@gmail.com" };
+  const enc = (obj) => bytesToB64url(new TextEncoder().encode(JSON.stringify(obj)));
+  const unsigned = enc(header) + "." + enc(claims);
+  const sigRaw = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    privateKey,
+    new TextEncoder().encode(unsigned)
+  );
+  const jwt = unsigned + "." + bytesToB64url(new Uint8Array(sigRaw));
+  return `vapid t=${jwt}, k=${vapidPublicKeyB64}`;
+}
+
+async function encryptWebPushPayload(payloadStr, p256dhB64, authB64) {
+  const asPublicBytes = b64urlToBytes(p256dhB64);
+  const authSecret = b64urlToBytes(authB64);
+
+  const asPublicKey = await crypto.subtle.importKey(
+    "raw", asPublicBytes, { name: "ECDH", namedCurve: "P-256" }, false, []
+  );
+  const localKeyPair = await crypto.subtle.generateKey(
+    { name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]
+  );
+  const localPublicRaw = new Uint8Array(await crypto.subtle.exportKey("raw", localKeyPair.publicKey));
+
+  const sharedSecretBits = await crypto.subtle.deriveBits(
+    { name: "ECDH", public: asPublicKey }, localKeyPair.privateKey, 256
+  );
+  const ecdhSecret = new Uint8Array(sharedSecretBits);
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  const keyInfo = concatBytes(
+    new TextEncoder().encode("WebPush: info\0"), asPublicBytes, localPublicRaw
+  );
+  const ikmKey = await crypto.subtle.importKey("raw", ecdhSecret, "HKDF", false, ["deriveBits"]);
+  const ikmBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: authSecret, info: keyInfo }, ikmKey, 256
+  );
+  const ikm = new Uint8Array(ikmBits);
+
+  const prkKey = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  const cekInfo = new TextEncoder().encode("Content-Encoding: aes128gcm\0");
+  const cekBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt, info: cekInfo }, prkKey, 128
+  );
+  const nonceInfo = new TextEncoder().encode("Content-Encoding: nonce\0");
+  const nonceBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt, info: nonceInfo }, prkKey, 96
+  );
+  const cek = new Uint8Array(cekBits);
+  const nonce = new Uint8Array(nonceBits);
+
+  const aesKey = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+  const plaintext = concatBytes(new TextEncoder().encode(payloadStr), new Uint8Array([2])); // padding delimiter
+  const encryptedBits = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, plaintext);
+  const encrypted = new Uint8Array(encryptedBits);
+
+  const rs = new Uint8Array(4);
+  new DataView(rs.buffer).setUint32(0, 4096, false);
+  const idLen = new Uint8Array([localPublicRaw.length]);
+  const header = concatBytes(salt, rs, idLen, localPublicRaw);
+  return concatBytes(header, encrypted);
+}
+
+async function sendWebPush(subscription, payloadStr, vapidPublicKeyB64, vapidPrivateKeyB64) {
+  const endpointUrl = new URL(subscription.endpoint);
+  const audience = `${endpointUrl.protocol}//${endpointUrl.host}`;
+  const authHeader = await createVapidAuthHeader(audience, vapidPublicKeyB64, vapidPrivateKeyB64);
+  const body = await encryptWebPushPayload(payloadStr, subscription.keys.p256dh, subscription.keys.auth);
+
+  const res = await fetch(subscription.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Encoding": "aes128gcm",
+      "TTL": "86400",
+      "Authorization": authHeader,
+    },
+    body,
+  });
+  if (!res.ok) {
+    const err = new Error("Push failed: " + res.status);
+    err.status = res.status;
+    throw err;
+  }
+  return true;
 }
