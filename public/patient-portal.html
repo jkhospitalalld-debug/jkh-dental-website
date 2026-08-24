@@ -15,6 +15,10 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 .pill.pending{background:#fff3cd;color:#7a5b00}.pill.confirmed{background:#d4f4dd;color:#0f6b2e}.pill.cancelled{background:#fbdada;color:#a11c1c}
 .xray-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}.xray-grid img{width:100%;height:200px;object-fit:contain;background:#000;border-radius:10px;box-shadow:0 4px 12px #073b4c14}
 .err{color:#c0392b;font-size:13px;margin-top:10px}
+.bubble{max-width:75%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.4}
+.bubble.patient{align-self:flex-end;background:var(--t);color:#fff;border-bottom-right-radius:4px}
+.bubble.admin{align-self:flex-start;background:var(--bg);color:#18323a;border:1px solid var(--line);border-bottom-left-radius:4px}
+.bubble time{display:block;font-size:10px;opacity:.7;margin-top:4px}
 @media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.hero{display:block}.wrap{padding:20px 14px}}@media(max-width:480px){.grid{grid-template-columns:1fr}.login{margin:3vh 14px;padding:25px}}
 </style>
 </head>
@@ -39,6 +43,7 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 <button class="tab" data-id="bills" onclick="show('bills')">Bills</button>
 <button class="tab" data-id="reports" onclick="show('reports')">X-Rays</button>
 <button class="tab" data-id="profile" onclick="show('profile')">Profile</button>
+<button class="tab" data-id="chat" onclick="show('chat')">💬 Ask a Query</button>
 </div>
 
 <div id="dashboard" class="content"><div class="grid">
@@ -66,6 +71,17 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 <div id="reports" class="content" style="display:none"><div class="panel"><h2>X-Rays</h2><div id="xrayGrid" class="xray-grid"><p class="mut">Loading...</p></div></div></div>
 
 <div id="profile" class="content" style="display:none"><div class="panel"><h2>Patient Profile</h2><div class="row"><span>Name</span><b id="pn">-</b></div><div class="row"><span>Mobile</span><b id="pm">-</b></div><div class="row"><span>Age / Sex</span><b id="pas">-</b></div><div class="row"><span>UHID</span><b id="pu">-</b></div></div></div>
+
+<div id="chat" class="content" style="display:none"><div class="panel">
+<h2>Ask the Clinic</h2>
+<p class="mut">Send a question or query to the clinic. The doctor's team will reply here.</p>
+<div id="chatThread" style="max-height:400px;overflow-y:auto;margin:16px 0;display:flex;flex-direction:column;gap:10px"></div>
+<div style="display:flex;gap:8px">
+<input id="chatInput" placeholder="Type your question..." style="flex:1;margin:0" onkeydown="if(event.key==='Enter')sendChatMessage()">
+<button class="btn" style="width:auto;margin:0" onclick="sendChatMessage()">Send</button>
+</div>
+<p id="chatMsg" class="mut" style="margin-top:8px"></p>
+</div></div>
 
 <div class="footer">J.K. Hospital Dental Care Center • Prayagraj<br>For any correction in your records, please contact the clinic.</div>
 </div></section>
@@ -402,6 +418,46 @@ async function downloadRxPDF(){
   finally{btn.disabled=false;btn.textContent='⬇ Download Rx';}
 }
 
-function show(id){document.querySelectorAll('.content').forEach(x=>x.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('sel',x.dataset.id===id))}
+function show(id){document.querySelectorAll('.content').forEach(x=>x.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('sel',x.dataset.id===id));if(id==='chat')loadChat();}
+
+let chatPollTimer=null;
+async function loadChat(){
+ const thread=document.getElementById('chatThread');
+ try{
+  const res=await fetch(`/api/messages/by-patient?uhid=${encodeURIComponent(STATE.uhid)}&phone=${STATE.mobile}`);
+  const msgs=await res.json();
+  if(!msgs.length){
+   thread.innerHTML='<p class="mut" style="text-align:center">No messages yet. Ask your question below.</p>';
+  }else{
+   thread.innerHTML=msgs.map(m=>`<div class="bubble ${m.sender}">${esc(m.message)}<time>${new Date(m.created_at).toLocaleString()}</time></div>`).join('');
+   thread.scrollTop=thread.scrollHeight;
+  }
+ }catch(e){
+  thread.innerHTML='<p class="mut">Could not load messages.</p>';
+ }
+ if(!chatPollTimer) chatPollTimer=setInterval(()=>{ if(document.getElementById('chat').style.display!=='none') loadChat(); },15000);
+}
+
+async function sendChatMessage(){
+ const input=document.getElementById('chatInput');
+ const msg=input.value.trim();
+ const status=document.getElementById('chatMsg');
+ if(!msg)return;
+ input.disabled=true; status.textContent='Sending...';
+ try{
+  const res=await fetch('/api/messages',{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({uhid:STATE.uhid,phone:STATE.mobile,patient_name:document.getElementById('pn').textContent,message:msg})
+  });
+  if(!res.ok)throw new Error();
+  input.value=''; status.textContent='';
+  loadChat();
+ }catch(e){
+  status.textContent='Could not send message. Please try again.';
+ }finally{
+  input.disabled=false;
+ }
+}
 </script>
 </body></html>

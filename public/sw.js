@@ -26,7 +26,32 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch: network first, fallback to cache (so live data like appointments/bills always tries live first)
+// Push notification: show alert even when app is closed
+self.addEventListener("push", (event) => {
+  let data = { title: "J.K. Dental", body: "You have a new update.", url: "/admin.html" };
+  try { data = event.data.json(); } catch (e) {}
+  event.waitUntil(
+    self.registration.showNotification(data.title || "J.K. Dental", {
+      body: data.body || "",
+      icon: "/assets/icon-192.png",
+      badge: "/assets/icon-192.png",
+      data: { url: data.url || "/admin.html" }
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/admin.html";
+  event.waitUntil(
+    clients.matchAll({ type: "window" }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(url) && "focus" in client) return client.focus();
+      }
+      if (clients.openWindow) return clients.openWindow(url);
+    })
+  );
+});
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 

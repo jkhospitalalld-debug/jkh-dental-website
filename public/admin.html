@@ -34,6 +34,13 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 .badge.cancelled{background:#fbdada;color:#a11c1c}
 .appt-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .appt-actions button{width:auto;padding:8px 12px;font-size:12px;margin:0}
+.bubble{max-width:75%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.4}
+.bubble.patient{align-self:flex-start;background:var(--bg);color:#18323a;border:1px solid #e0e8e8;border-bottom-left-radius:4px}
+.bubble.admin{align-self:flex-end;background:var(--teal);color:#fff;border-bottom-right-radius:4px}
+.bubble time{display:block;font-size:10px;opacity:.7;margin-top:4px}
+.conv-item{padding:12px;border-radius:10px;border:1px solid #eef3f3;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.conv-item:hover{background:var(--bg)}
+.unread-dot{background:#d64545;color:#fff;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:800}
 .faq-item{background:#fff;border:1px solid #e3eeee;border-radius:12px;padding:14px;margin-bottom:10px}.faq-item h4{margin:0 0 6px;color:var(--navy);font-size:14px}.faq-item p{margin:4px 0;font-size:13px;white-space:pre-wrap}.faq-meta{font-size:11px;color:var(--muted);margin-bottom:8px}.faq-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.faq-actions button{width:auto;margin:0;padding:8px 12px;font-size:12px}.faq-edit{display:none;background:#f7fbfb;border-radius:10px;padding:12px;margin-top:10px}.faq-edit input,.faq-edit textarea,.faq-edit select{margin-bottom:8px}.faq-edit textarea{min-height:100px}
 </style>
 </head>
@@ -55,7 +62,8 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 <div class="box" style="display:flex;gap:10px;padding:14px">
 <button id="tabCasesBtn" onclick="showTab('cases')" style="margin:0">Case Photos</button>
 <button id="tabApptBtn" onclick="showTab('appt')" class="secondary" style="margin:0">Appointments</button>
-<button id="tabVideosBtn" onclick="showTab('videos')" class="secondary" style="margin:0">Videos</button><button id="tabFaqBtn" onclick="showTab('faq')" class="secondary" style="margin:0">💬 FAQ Chat</button>
+<button id="tabVideosBtn" onclick="showTab('videos')" class="secondary" style="margin:0">Videos</button>
+<button id="tabMessagesBtn" onclick="showTab('messages')" class="secondary" style="margin:0">Messages</button><button id="tabFaqBtn" onclick="showTab('faq')" class="secondary" style="margin:0">💬 FAQ Chat</button>
 </div>
 
 <div id="tabCases">
@@ -101,6 +109,30 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 </div>
 </div>
 
+<div id="tabMessages" style="display:none">
+<div class="box" id="pushSetupBox">
+<label>Push Notifications</label>
+<p style="color:var(--muted);font-size:13px;margin:4px 0 10px">Get notified instantly on this device when a patient sends a message, even if this app is closed.</p>
+<button onclick="enablePushNotifications()" id="enablePushBtn">🔔 Enable Notifications</button>
+<p id="pushMsg" style="font-size:13px;margin-top:8px"></p>
+</div>
+<div class="box" id="conversationListBox">
+<label>Patient Conversations</label>
+<div id="conversationsList"><p style="color:var(--muted)">Loading...</p></div>
+</div>
+<div class="box" id="threadBox" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+<label style="margin:0" id="threadPatientLabel">Conversation</label>
+<button class="secondary" style="width:auto;margin:0" onclick="closeThread()">← Back to list</button>
+</div>
+<div id="adminChatThread" style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
+<div style="display:flex;gap:8px">
+<input id="adminReplyInput" placeholder="Type your reply..." style="flex:1;margin:0" onkeydown="if(event.key==='Enter')sendAdminReply()">
+<button style="width:auto;margin:0" onclick="sendAdminReply()">Send</button>
+</div>
+</div>
+</div>
+
 <div id="tabFaq" style="display:none"><div class="box"><label>Question</label><input id="faqQuestion" type="text" placeholder="e.g. What are your clinic hours?"><label style="margin-top:12px">Answer</label><textarea id="faqAnswer" placeholder="Write the answer shown to patients..."></textarea><label>Category</label><input id="faqCategory" type="text" value="General"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label>Display Order</label><input id="faqOrder" type="number" value="0" min="0"></div><div><label>Active</label><select id="faqActive"><option value="1">Active</option><option value="0">Hidden</option></select></div></div><button onclick="addFaq()">➕ Add FAQ</button><p id="faqMsg"></p></div><div class="box"><label>Existing FAQs</label><div id="faqList"><p style="color:var(--muted)">Loading...</p></div></div></div>
 
 <button class="secondary" onclick="logout()">Logout</button>
@@ -114,7 +146,7 @@ function show(el,on){document.getElementById(el).style.display=on?"block":"none"
 async function checkAuth(){
  if(!TOKEN){show("loginBox",true);show("panel",false);return;}
  const ok=await verify();
- if(ok){show("loginBox",false);show("panel",true);loadGrid();fetchApptBadgeCount();}
+ if(ok){show("loginBox",false);show("panel",true);loadGrid();fetchApptBadgeCount();fetchMessagesBadgeCount();}
  else{TOKEN="";sessionStorage.removeItem("jkh_admin_pw");show("loginBox",true);show("panel",false);}
 }
 
@@ -132,7 +164,7 @@ async function login(){
  if(ok){
   sessionStorage.setItem("jkh_admin_pw",TOKEN);
   document.getElementById("loginMsg").textContent="";
-  show("loginBox",false);show("panel",true);loadGrid();fetchApptBadgeCount();
+  show("loginBox",false);show("panel",true);loadGrid();fetchApptBadgeCount();fetchMessagesBadgeCount();
  }else{
   document.getElementById("loginMsg").textContent="Wrong password. Try again.";
  }
@@ -211,13 +243,155 @@ function showTab(tab){
  document.getElementById("tabAppt").style.display=tab==="appt"?"block":"none";
  document.getElementById("tabVideos").style.display=tab==="videos"?"block":"none";
  document.getElementById("tabFaq").style.display=tab==="faq"?"block":"none";
+ document.getElementById("tabMessages").style.display=tab==="messages"?"block":"none";
  document.getElementById("tabCasesBtn").className=tab==="cases"?"":"secondary";
  document.getElementById("tabApptBtn").className=tab==="appt"?"":"secondary";
  document.getElementById("tabVideosBtn").className=tab==="videos"?"":"secondary";
  document.getElementById("tabFaqBtn").className=tab==="faq"?"":"secondary";
+ document.getElementById("tabMessagesBtn").className=tab==="messages"?"":"secondary";
  if(tab==="appt")loadAppointments();
  if(tab==="videos")loadVideos();
  if(tab==="faq")loadFaqs();
+ if(tab==="messages")loadConversations();
+}
+
+const VAPID_PUBLIC_KEY = "BCH5FWF7KANv3fZt8sBk8SrpaFwX3qgD5qH9hFJkcfDldUHuZ-DAY4zalCxRQ5M2mgFVtbvfw2bfNFzn5LRucZQ";
+let CURRENT_THREAD_UHID = null;
+let CURRENT_THREAD_PHONE = null;
+let CURRENT_THREAD_NAME = null;
+
+async function fetchMessagesBadgeCount(){
+ try{
+  const res=await fetch("/api/admin/messages",{headers:{"Authorization":"Bearer "+TOKEN}});
+  const convos=await res.json();
+  updateMessagesBadge(convos.reduce((s,c)=>s+c.unread,0));
+ }catch(e){}
+}
+
+async function loadConversations(){
+ const list=document.getElementById("conversationsList");
+ list.innerHTML="Loading...";
+ try{
+  const res=await fetch("/api/admin/messages",{headers:{"Authorization":"Bearer "+TOKEN}});
+  const convos=await res.json();
+  updateMessagesBadge(convos.reduce((s,c)=>s+c.unread,0));
+  if(!convos.length){list.innerHTML='<p style="color:var(--muted)">No patient messages yet.</p>';return;}
+  list.innerHTML=convos.map(c=>{
+   const last=c.messages[c.messages.length-1];
+   return `<div class="conv-item" onclick="openThread('${esc(c.uhid)}','${esc(c.phone)}','${esc((c.patient_name||'Patient').replace(/'/g,"\\'"))}')">
+    <div><b>${esc(c.patient_name||'Patient')}</b> <span style="color:var(--muted);font-size:12px">(UHID: ${esc(c.uhid)})</span><br>
+    <span style="font-size:13px;color:var(--muted)">${esc((last.message||'').slice(0,60))}${last.message.length>60?'...':''}</span></div>
+    ${c.unread>0?`<span class="unread-dot">${c.unread}</span>`:''}
+   </div>`;
+  }).join("");
+ }catch(e){
+  list.innerHTML='<p style="color:#d64545">Could not load messages.</p>';
+ }
+}
+
+function updateMessagesBadge(count){
+ const btn=document.getElementById("tabMessagesBtn");
+ let badge=document.getElementById("msgBadge");
+ if(!badge){
+  badge=document.createElement("span");
+  badge.id="msgBadge";
+  badge.style.cssText="background:#d64545;color:#fff;border-radius:20px;padding:1px 7px;font-size:11px;margin-left:6px";
+  btn.appendChild(badge);
+ }
+ badge.textContent=count;
+ badge.style.display=count>0?"inline-block":"none";
+}
+
+async function openThread(uhid,phone,name){
+ CURRENT_THREAD_UHID=uhid; CURRENT_THREAD_PHONE=phone; CURRENT_THREAD_NAME=name;
+ document.getElementById("conversationListBox").style.display="none";
+ document.getElementById("threadBox").style.display="block";
+ document.getElementById("threadPatientLabel").textContent=`${name} (UHID: ${uhid})`;
+ await loadThread();
+ await fetch(`/api/admin/messages/${encodeURIComponent(uhid)}`,{method:"PATCH",headers:{"Authorization":"Bearer "+TOKEN}});
+}
+
+async function loadThread(){
+ const thread=document.getElementById("adminChatThread");
+ try{
+  const res=await fetch("/api/admin/messages",{headers:{"Authorization":"Bearer "+TOKEN}});
+  const convos=await res.json();
+  const convo=convos.find(c=>c.uhid===CURRENT_THREAD_UHID);
+  const msgs=convo?convo.messages:[];
+  thread.innerHTML=msgs.map(m=>`<div class="bubble ${m.sender}">${esc(m.message)}<time>${new Date(m.created_at).toLocaleString()}</time></div>`).join("");
+  thread.scrollTop=thread.scrollHeight;
+ }catch(e){
+  thread.innerHTML='<p style="color:#d64545">Could not load conversation.</p>';
+ }
+}
+
+function closeThread(){
+ document.getElementById("threadBox").style.display="none";
+ document.getElementById("conversationListBox").style.display="block";
+ loadConversations();
+}
+
+async function sendAdminReply(){
+ const input=document.getElementById("adminReplyInput");
+ const msg=input.value.trim();
+ if(!msg)return;
+ input.disabled=true;
+ try{
+  await fetch(`/api/admin/messages/${encodeURIComponent(CURRENT_THREAD_UHID)}`,{
+   method:"POST",
+   headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},
+   body:JSON.stringify({message:msg,phone:CURRENT_THREAD_PHONE,patient_name:CURRENT_THREAD_NAME})
+  });
+  input.value="";
+  await loadThread();
+ }catch(e){}
+ finally{ input.disabled=false; input.focus(); }
+}
+
+function urlBase64ToUint8Array(base64String){
+ const padding="=".repeat((4-base64String.length%4)%4);
+ const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+ const raw=atob(base64);
+ const arr=new Uint8Array(raw.length);
+ for(let i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
+ return arr;
+}
+
+async function enablePushNotifications(){
+ const btn=document.getElementById("enablePushBtn");
+ const msg=document.getElementById("pushMsg");
+ if(!("serviceWorker" in navigator) || !("PushManager" in window)){
+  msg.style.color="#d64545"; msg.textContent="Push notifications are not supported on this browser.";
+  return;
+ }
+ btn.disabled=true; btn.textContent="Setting up...";
+ try{
+  const permission=await Notification.requestPermission();
+  if(permission!=="granted"){
+   msg.style.color="#d64545"; msg.textContent="Notification permission was not granted.";
+   btn.disabled=false; btn.textContent="🔔 Enable Notifications";
+   return;
+  }
+  const reg=await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  let sub=await reg.pushManager.getSubscription();
+  if(!sub){
+   sub=await reg.pushManager.subscribe({
+    userVisibleOnly:true,
+    applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+   });
+  }
+  await fetch("/api/push/subscribe",{
+   method:"POST",
+   headers:{"Content-Type":"application/json","Authorization":"Bearer "+TOKEN},
+   body:JSON.stringify(sub.toJSON())
+  });
+  msg.style.color="#18a85b"; msg.textContent="Notifications enabled on this device.";
+  btn.textContent="✅ Notifications Enabled";
+ }catch(e){
+  msg.style.color="#d64545"; msg.textContent="Could not enable notifications. Please try again.";
+  btn.disabled=false; btn.textContent="🔔 Enable Notifications";
+ }
 }
 
 async function loadFaqs(){const list=document.getElementById("faqList");list.innerHTML="Loading...";try{const r=await fetch("/api/admin/faqs",{headers:{"Authorization":"Bearer "+TOKEN}});if(!r.ok)throw 0;const data=await r.json();if(!data.length){list.innerHTML='<p style="color:var(--muted)">No FAQs yet.</p>';return}list.innerHTML=data.map(f=>`<div class="faq-item"><h4>${esc(f.question)}</h4><div class="faq-meta">${esc(f.category||"General")} · Order ${f.display_order||0} · ${f.active?"Active":"Hidden"}</div><p>${esc(f.answer)}</p><div class="faq-actions"><button class="secondary" onclick="toggleFaqEdit(${f.id})">✏️ Edit</button><button class="danger" onclick="deleteFaq(${f.id})">Delete</button></div><div class="faq-edit" id="faqEdit${f.id}"><input id="fq${f.id}" value="${escAttr(f.question)}"><textarea id="fa${f.id}">${esc(f.answer)}</textarea><input id="fc${f.id}" value="${escAttr(f.category||"General")}"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="fo${f.id}" type="number" value="${Number(f.display_order)||0}" min="0"><select id="fx${f.id}"><option value="1" ${f.active?"selected":""}>Active</option><option value="0" ${!f.active?"selected":""}>Hidden</option></select></div><div class="faq-actions"><button onclick="updateFaq(${f.id})">Save Changes</button><button class="secondary" onclick="toggleFaqEdit(${f.id})">Cancel</button></div></div></div>`).join("")}catch(e){list.innerHTML='<p style="color:#d64545">Could not load FAQs.</p>'}}
