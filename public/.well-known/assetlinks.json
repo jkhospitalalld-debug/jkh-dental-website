@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.jkhospitalalld.dental",
+    "sha256_cert_fingerprints": [
+      "8E:D3:9A:B9:7C:70:01:4B:15:05:8D:14:88:9D:CB:1D:7D:45:D9:1A:04:55:CA:25:9B:7C:F4:D5:5A:5A:98:49"
+    ]
+  }
+}]
