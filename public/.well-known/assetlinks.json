@@ -4,7 +4,8 @@
     "namespace": "android_app",
     "package_name": "com.jkhospitalalld.dental",
     "sha256_cert_fingerprints": [
-      "8E:D3:9A:B9:7C:70:01:4B:15:05:8D:14:88:9D:CB:1D:7D:45:D9:1A:04:55:CA:25:9B:7C:F4:D5:5A:5A:98:49"
+      "8E:D3:9A:B9:7C:70:01:4B:15:05:8D:14:88:9D:CB:1D:7D:45:D9:1A:04:55:CA:25:9B:7C:F4:D5:5A:5A:98:49",
+      "08:F1:1F:25:54:4E:1C:52:5E:AA:42:9D:29:CA:64:5C:C1:59:B1:35:41:FB:A4:3D:B9:44:78:DB:81:1A:9F:81"
     ]
   }
 }]
