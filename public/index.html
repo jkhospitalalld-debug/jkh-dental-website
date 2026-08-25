@@ -484,7 +484,7 @@ if ("serviceWorker" in navigator) {
 }
 </script>
 
-<!-- Install App button -->
+<!-- Download App button -->
 <style>
 #installAppBtn{
   position:fixed;bottom:20px;right:20px;z-index:999;
@@ -494,6 +494,7 @@ if ("serviceWorker" in navigator) {
   font-weight:800;font-size:14px;cursor:pointer;
   box-shadow:0 8px 22px rgba(7,59,76,.35);
   font-family:Arial,Helvetica,sans-serif;
+  text-decoration:none;
 }
 #installAppBtn:hover{background:var(--teal,#0b8f8f)}
 #iosInstallTip{
@@ -509,7 +510,7 @@ if ("serviceWorker" in navigator) {
 }
 </style>
 
-<button id="installAppBtn">📱 Download the JKHDental App</button>
+<a id="installAppBtn" href="/app/jkh-dental-app.apk" download>⬇️ Download the JKHDental App</a>
 <div id="iosInstallTip">
   <button onclick="document.getElementById('iosInstallTip').style.display='none'">✕</button>
   <strong>Install this app:</strong> Tap the Share icon <b>⬆️</b> in Safari, then choose
@@ -517,7 +518,6 @@ if ("serviceWorker" in navigator) {
 </div>
 
 <script>
-let deferredInstallPrompt = null;
 const installBtn = document.getElementById("installAppBtn");
 const iosTip = document.getElementById("iosInstallTip");
 
@@ -531,27 +531,12 @@ if (!isInStandaloneMode) {
     iosTip.style.display = "block";
   } else {
     installBtn.style.display = "inline-flex";
-
-    window.addEventListener("beforeinstallprompt", (e) => {
-      e.preventDefault();
-      deferredInstallPrompt = e;
-    });
-
-    installBtn.addEventListener("click", async () => {
-      if (deferredInstallPrompt) {
-        deferredInstallPrompt.prompt();
-        await deferredInstallPrompt.userChoice;
-        deferredInstallPrompt = null;
-        installBtn.style.display = "none";
-      } else {
+    installBtn.addEventListener("click", () => {
+      setTimeout(() => {
         alert(
-          'Is device par auto-install available nahi hai.\n\nManually install karein:\nBrowser ke top-right ⋮ (3-dot) menu par tap karein, phir "Install app" ya "Add to Home screen" chunein.'
+          'App download ho rahi hai.\n\nInstall karne ke liye:\n1. Downloaded file par tap karein.\n2. Agar "Install blocked" ka message aaye, "Settings" par tap karke "Allow from this source" ON karein.\n3. Wapas jaakar install karein.'
         );
-      }
-    });
-
-    window.addEventListener("appinstalled", () => {
-      installBtn.style.display = "none";
+      }, 800);
     });
   }
 }
