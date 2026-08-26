@@ -23,6 +23,24 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 </style>
 </head>
 <body>
+<script>
+// If the real app is installed, quietly hand off to it via a hidden iframe
+// (does NOT navigate the visible page away, so nothing goes blank even if
+// the app isn't installed). Skips itself if already running inside the
+// app's own WebView (detected via custom UA tag).
+(function(){
+  if (navigator.userAgent.indexOf("JKHDentalApp") !== -1) return; // already inside the app
+  try {
+    var iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = "jkhdental://patient-portal" + window.location.search;
+    document.documentElement.appendChild(iframe);
+    setTimeout(function () {
+      if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 1500);
+  } catch (e) {}
+})();
+</script>
 <div class="top"><div class="topin"><div class="brand">🦷 J.K. HOSPITAL DENTAL CARE CENTER<small>MY J.K. DENTAL • PATIENT PORTAL</small></div><a href="/" class="btn secondary">← Website</a></div></div>
 
 <section id="login" class="screen active"><div class="login"><div class="logo">🦷</div><h1>My J.K. Dental</h1>
