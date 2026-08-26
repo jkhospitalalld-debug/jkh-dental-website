@@ -24,22 +24,17 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 </head>
 <body>
 <script>
-// If the real app is installed, quietly hand off to it via a hidden iframe
-// (does NOT navigate the visible page away, so nothing goes blank even if
-// the app isn't installed). Skips itself if already running inside the
-// app's own WebView (detected via custom UA tag).
-(function(){
-  if (navigator.userAgent.indexOf("JKHDentalApp") !== -1) return; // already inside the app
-  try {
-    var iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    iframe.src = "jkhdental://patient-portal" + window.location.search;
-    document.documentElement.appendChild(iframe);
-    setTimeout(function () {
-      if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
-    }, 1500);
-  } catch (e) {}
-})();
+  // Hide the "Open in App" banner if we're already running inside the
+  // app's own WebView (detected via custom UA tag).
+  var IS_INSIDE_APP = navigator.userAgent.indexOf("JKHDentalApp") !== -1;
+</script>
+<div id="openAppBar" style="display:none;background:#073b4c;color:#fff;padding:12px 16px;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;cursor:pointer" onclick="window.location.href='jkhdental://patient-portal'+window.location.search">
+  📱 Open in J.K. Dental App
+</div>
+<script>
+  if (!IS_INSIDE_APP) {
+    document.getElementById("openAppBar").style.display = "block";
+  }
 </script>
 <div class="top"><div class="topin"><div class="brand">🦷 J.K. HOSPITAL DENTAL CARE CENTER<small>MY J.K. DENTAL • PATIENT PORTAL</small></div><a href="/" class="btn secondary">← Website</a></div></div>
 
