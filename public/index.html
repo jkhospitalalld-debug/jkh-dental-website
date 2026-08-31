@@ -97,6 +97,13 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 #faqChatSend{width:44px;border:0;border-radius:50%;background:var(--teal);color:#fff;font-weight:800;cursor:pointer}
 @media(max-width:600px){#faqChatLauncher{right:14px;bottom:74px}#faqChatBox{right:10px;bottom:72px;width:calc(100vw - 20px);height:min(620px,calc(100vh - 90px))}}
 </style>
+
+<style id="google-review-cta-css">
+.google-review-cta{margin:28px auto 0;max-width:920px;border-radius:22px;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:18px;background:linear-gradient(135deg,#fffdf2,#f3ffff);border:1px solid rgba(19,168,178,.22);box-shadow:0 12px 30px rgba(10,45,60,.10)}
+.google-review-cta h3{margin:0 0 6px;color:#0b2940;font-size:22px}.google-review-cta p{margin:0;color:#52636b;line-height:1.5}
+.google-review-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:205px;padding:13px 18px;border-radius:13px;text-decoration:none;font-weight:800;background:#0b2940;color:#fff;box-shadow:0 8px 18px rgba(11,41,64,.18)}
+@media(max-width:650px){.google-review-cta{flex-direction:column;align-items:stretch;text-align:center}.google-review-btn{width:100%}}
+</style>
 </head>
 <body>
 
@@ -107,7 +114,7 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 <div>J.K. HOSPITAL DENTAL CARE CENTER<small>EXCLUSIVE DENTAL OPD CLINIC • PRAYAGRAJ</small></div>
 </a>
 <nav id="mainNav">
-<a href="#home">Home</a><a href="#about">About</a><a href="#services">Services</a><a href="#cases">Cases</a><a href="#videos">Videos</a><a href="#appointment">Appointment</a><a href="#contact">Contact</a><a class="portal-link" href="/patient-portal.html">👤 My J.K. Dental</a>
+<a href="#home">Home</a><a href="#about">About</a><a href="#services">Services</a><a href="#cases">Cases</a><a href="#videos">Videos</a><a href="#appointment">Appointment</a><a href="#contact">Contact</a><a href="#google-review">⭐ Reviews</a><a class="portal-link" href="/patient-portal.html">👤 My J.K. Dental</a>
 </nav>
 <a class="btn portal-mobile" href="/patient-portal.html">👤 My J.K. Dental</a><a class="btn" href="#appointment">Book Appointment</a>
 <button class="hamburger" id="hamburgerBtn" onclick="toggleNav()" aria-label="Menu"><span></span><span></span><span></span></button>
@@ -259,6 +266,13 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
   <div id="faqChatInputRow"><input id="faqChatInput" type="text" placeholder="Type your question..." autocomplete="off"><button id="faqChatSend" type="button" onclick="askFaq()">➤</button></div>
 </div>
 
+
+<section class="section" id="google-review">
+<div class="wrap"><div class="google-review-cta">
+<div><h3>⭐ How was your experience with us?</h3><p>Your feedback helps other patients find our clinic and helps us improve.</p></div>
+<a class="google-review-btn" href="https://search.google.com/local/writereview?placeid=ChIJ75HiR7PKmjkRxLn1f68N6NM" target="_blank" rel="noopener">⭐ Share your experience on Google</a>
+</div></div>
+</section>
 <footer>
 © <span id="year"></span> J.K. Hospital Dental Care Center. All rights reserved.
 </footer>
