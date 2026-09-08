@@ -60,7 +60,7 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 <a class="google-review-portal-btn" href="https://search.google.com/local/writereview?placeid=ChIJ75HiR7PKmjkRxLn1f68N6NM" target="_blank" rel="noopener">⭐ Leave a Google Review</a>
 </div></div>
 <div class="wrap">
-<div class="hero"><div><h1 id="welcome">Welcome</h1><p>Your J.K. Dental account overview.</p><div id="showUhid" class="uhid"></div></div><a class="btn" href="/#appointment">Book Appointment</a></div>
+<div class="hero"><div><h1 id="welcome">Welcome</h1><p>Your J.K. Dental account overview.</p><div id="showUhid" class="uhid"></div></div><div style="display:flex;gap:10px;align-items:center"><button class="btn secondary" onclick="manualRefresh()" id="refreshBtn">🔄 Refresh</button><a class="btn" href="/#appointment">Book Appointment</a></div></div>
 <div class="tabs">
 <button class="tab sel" data-id="dashboard" onclick="show('dashboard')">Dashboard</button>
 <button class="tab" data-id="appointments" onclick="show('appointments')">Appointments</button>
@@ -72,11 +72,7 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 <button class="tab" data-id="chat" onclick="show('chat')">💬 Ask a Query</button>
 </div>
 
-<div id="dashboard" class="content">
-<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-<button class="btn secondary" onclick="manualRefresh()" id="refreshBtn">🔄 Refresh</button>
-</div>
-<div class="grid">
+<div id="dashboard" class="content"><div class="grid">
 <div class="card"><div class="stat" id="statUpcoming">0</div><div class="mut">Upcoming Appointments</div></div>
 <div class="card"><div class="stat" id="statVisits">0</div><div class="mut">Visits</div></div>
 <div class="card"><div class="stat" id="statMeds">0</div><div class="mut">Prescriptions</div></div>
