@@ -72,7 +72,11 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 <button class="tab" data-id="chat" onclick="show('chat')">💬 Ask a Query</button>
 </div>
 
-<div id="dashboard" class="content"><div class="grid">
+<div id="dashboard" class="content">
+<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+<button class="btn secondary" onclick="manualRefresh()" id="refreshBtn">🔄 Refresh</button>
+</div>
+<div class="grid">
 <div class="card"><div class="stat" id="statUpcoming">0</div><div class="mut">Upcoming Appointments</div></div>
 <div class="card"><div class="stat" id="statVisits">0</div><div class="mut">Visits</div></div>
 <div class="card"><div class="stat" id="statMeds">0</div><div class="mut">Prescriptions</div></div>
@@ -467,6 +471,19 @@ async function refreshPatientData(){
   loadBills();
   loadXrays();
  }catch(e){}
+}
+
+async function manualRefresh(){
+ const btn=document.getElementById('refreshBtn');
+ const orig=btn.textContent;
+ btn.disabled=true; btn.textContent='🔄 Refreshing...';
+ try{
+  await refreshPatientData();
+  btn.textContent='✅ Updated';
+ }catch(e){
+  btn.textContent='❌ Failed';
+ }
+ setTimeout(()=>{btn.textContent=orig;btn.disabled=false;},1500);
 }
 
 let chatPollTimer=null;
