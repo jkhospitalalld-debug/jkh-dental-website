@@ -76,6 +76,33 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 .case-card{padding:0;overflow:hidden}
 .case-card img{width:100%;height:160px;object-fit:cover;display:block}
 .case-card .case-label{padding:12px 14px;font-weight:700;color:var(--navy);font-size:14px}
+/* Active-slide Before & After gallery */
+.cases-carousel{position:relative;margin:0 auto;max-width:1100px;padding:8px 46px 18px;overflow:hidden}
+.cases-track{display:flex;align-items:center;gap:18px;transition:transform .55s cubic-bezier(.22,.61,.36,1);will-change:transform}
+.case-slide{flex:0 0 calc((100% - 36px)/3);background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 10px 30px rgba(7,59,76,.10);opacity:.58;transform:scale(.88);transition:transform .45s ease,opacity .45s ease,box-shadow .45s ease}
+.case-slide.active{opacity:1;transform:scale(1);box-shadow:0 18px 42px rgba(7,59,76,.18);z-index:2}
+.case-slide img{width:100%;height:290px;object-fit:cover;display:block;background:#eef6f7}
+.case-slide .case-label{padding:13px 16px 15px;font-weight:800;color:var(--navy);font-size:14px;text-align:center}
+.case-nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border:0;border-radius:50%;background:var(--navy);color:#fff;font-size:25px;line-height:1;cursor:pointer;z-index:5;box-shadow:0 7px 18px rgba(7,59,76,.25)}
+.case-nav:hover{background:var(--teal)}
+.case-nav.prev{left:0}.case-nav.next{right:0}
+.case-dots{display:flex;justify-content:center;gap:7px;margin-top:18px}
+.case-dot{width:8px;height:8px;border:0;border-radius:50%;padding:0;background:#c5d7da;cursor:pointer;transition:all .25s ease}
+.case-dot.active{width:24px;border-radius:8px;background:var(--teal)}
+@media(max-width:850px){
+ .cases-carousel{padding:8px 32px 16px}
+ .case-slide{flex:0 0 78%;transform:scale(.88)}
+ .case-slide.active{transform:scale(1)}
+ .case-slide img{height:250px}
+ .case-nav{width:38px;height:38px;font-size:22px}
+}
+@media(max-width:480px){
+ .cases-carousel{padding-left:25px;padding-right:25px}
+ .case-slide{flex-basis:86%}
+ .case-slide img{height:230px}
+ .case-nav{width:34px;height:34px;font-size:20px}
+}
+
 </style>
 </head>
 <body>
@@ -160,8 +187,13 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 <div class="wrap">
 <h2>Before & After Cases</h2>
 <p class="sub">A glimpse of real treatment outcomes at our clinic.</p>
-<div class="cards" id="casesGrid" style="grid-template-columns:repeat(4,1fr)">
-<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Loading...</p>
+<div class="cases-carousel" id="casesCarousel">
+<button class="case-nav prev" id="casePrev" type="button" aria-label="Previous case">‹</button>
+<div class="cases-track" id="casesGrid">
+<p style="width:100%;text-align:center;color:var(--muted)">Loading...</p>
+</div>
+<button class="case-nav next" id="caseNext" type="button" aria-label="Next case">›</button>
+<div class="case-dots" id="caseDots" aria-label="Case slides"></div>
 </div>
 </div>
 </section>
@@ -262,15 +294,53 @@ async function loadVideos(){
  }
 }
 loadVideos();
+let caseSlides=[],caseIndex=0,caseTimer=null;
+function renderCaseSlider(data){
+ const grid=document.getElementById("casesGrid"), dots=document.getElementById("caseDots");
+ caseSlides=data;
+ grid.innerHTML=data.map((c,i)=>`<article class="case-slide" data-index="${i}">
+   <img src="${c.image}" alt="${(c.label||'Case').replace(/"/g,'&quot;')}" loading="lazy">
+   <div class="case-label">${c.label||'Case'}</div>
+ </article>`).join("");
+ dots.innerHTML=data.map((_,i)=>`<button class="case-dot${i===0?' active':''}" type="button" aria-label="Go to case ${i+1}" data-slide="${i}"></button>`).join("");
+ dots.querySelectorAll('.case-dot').forEach(b=>b.addEventListener('click',()=>{goToCase(+b.dataset.slide,true)}));
+ updateCaseSlider();
+ startCaseAuto();
+}
+function updateCaseSlider(){
+ const track=document.getElementById('casesGrid'), slides=track.querySelectorAll('.case-slide');
+ if(!slides.length)return;
+ caseIndex=(caseIndex+slides.length)%slides.length;
+ slides.forEach((el,i)=>el.classList.toggle('active',i===caseIndex));
+ const active=slides[caseIndex];
+ const carousel=document.getElementById('casesCarousel');
+ const offset=active.offsetLeft-(carousel.clientWidth-active.offsetWidth)/2;
+ track.style.transform=`translateX(${-offset}px)`;
+ document.querySelectorAll('.case-dot').forEach((d,i)=>d.classList.toggle('active',i===caseIndex));
+}
+function goToCase(i,manual=false){caseIndex=i;updateCaseSlider();if(manual)restartCaseAuto()}
+function nextCase(){goToCase(caseIndex+1)}
+function prevCase(){goToCase(caseIndex-1)}
+function startCaseAuto(){clearInterval(caseTimer);if(caseSlides.length>1)caseTimer=setInterval(nextCase,4500)}
+function restartCaseAuto(){startCaseAuto()}
+document.getElementById('caseNext').addEventListener('click',()=>{nextCase();restartCaseAuto()});
+document.getElementById('casePrev').addEventListener('click',()=>{prevCase();restartCaseAuto()});
+const casesCarousel=document.getElementById('casesCarousel');
+casesCarousel.addEventListener('mouseenter',()=>clearInterval(caseTimer));
+casesCarousel.addEventListener('mouseleave',startCaseAuto);
+window.addEventListener('resize',updateCaseSlider);
+let caseTouchX=0;
+casesCarousel.addEventListener('touchstart',e=>{caseTouchX=e.changedTouches[0].clientX;clearInterval(caseTimer)},{passive:true});
+casesCarousel.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-caseTouchX;if(Math.abs(dx)>45){dx<0?nextCase():prevCase()}startCaseAuto()},{passive:true});
 async function loadCases(){
  const grid=document.getElementById("casesGrid");
  try{
   const res=await fetch("/api/cases");
   const data=await res.json();
-  if(!data.length){grid.innerHTML='<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Cases will be added soon.</p>';return;}
-  grid.innerHTML=data.map(c=>`<div class="card case-card"><img src="${c.image}" alt="${(c.label||'Case').replace(/"/g,'')}" loading="lazy"><div class="case-label">${c.label||'Case'}</div></div>`).join("");
+  if(!data.length){grid.innerHTML='<p style="width:100%;text-align:center;color:var(--muted)">Cases will be added soon.</p>';return;}
+  renderCaseSlider(data);
  }catch(e){
-  grid.innerHTML='<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Cases will be added soon.</p>';
+  grid.innerHTML='<p style="width:100%;text-align:center;color:var(--muted)">Cases will be added soon.</p>';
  }
 }
 loadCases();
