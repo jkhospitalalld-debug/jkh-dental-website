@@ -419,9 +419,14 @@ function nextFreeTime(requestedTime,busyTimes){
 }
 async function getBookedTimes(date){
  const res=await fetch('/api/appointments/by-date?date='+encodeURIComponent(date),{cache:'no-store'});
- if(!res.ok) throw new Error('Availability could not be verified. Please try again.');
- const data=await res.json();
- if(!Array.isArray(data)) throw new Error('Unexpected availability response.');
+ let data;
+ try{data=await res.json();}catch(_){data=null;}
+ if(!res.ok){
+  const detail=data&&typeof data.error==='string'?data.error:'';
+  if(res.status===404) throw new Error('Availability API route not found (HTTP 404). Deploy the updated src/index.js Worker.');
+  throw new Error(detail||`Availability check failed (HTTP ${res.status}). Please verify the website API deployment.`);
+ }
+ if(!Array.isArray(data)) throw new Error((data&&data.error)||'Unexpected availability response from server.');
  return data;
 }
 function setSlotHint(message,color='var(--muted)'){
