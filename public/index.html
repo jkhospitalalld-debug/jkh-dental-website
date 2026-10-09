@@ -483,8 +483,8 @@ const appointmentTimeInput=document.getElementById('time');
 const todayLocal=localDateValue();
 appointmentDateInput.min=todayLocal;
 document.getElementById('checkDate').min=todayLocal;
-apointmentDateInput.addEventListener('change',()=>{document.getElementById('checkDate').value=appointmentDateInput.value;handleSlotChange();});
-apointmentTimeInput.addEventListener('change',handleSlotChange);
+appointmentDateInput.addEventListener('change',()=>{document.getElementById('checkDate').value=appointmentDateInput.value;handleSlotChange();});
+appointmentTimeInput.addEventListener('change',handleSlotChange);
 document.getElementById('checkDate').addEventListener('change',async()=>{
  const d=document.getElementById('checkDate').value;
  if(d && appointmentDateInput.value!==d){appointmentDateInput.value=d;if(appointmentTimeInput.value) await handleSlotChange();}
@@ -527,7 +527,7 @@ async function sendAppointment(e){
   e.target.reset();
  }catch(err){
   apptMsg.style.color="#d64545";
-  apptMsg.textContent="Could not save appointment. Please try again or call the clinic.";
+  apptMsg.textContent=err && err.message ? err.message : "Could not save appointment. Please try again or call the clinic.";
  }finally{
   btn.disabled=false;btn.textContent="Book Appointment";
  }
