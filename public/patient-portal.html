@@ -48,7 +48,7 @@ label{display:block;font-weight:bold;font-size:13px;margin:16px 0 7px}input{widt
 <p>Access appointments, prescriptions, bills and dental records.</p>
 <label>UHID</label><input id="uhid" placeholder="e.g. 20260812M0001">
 <label>Mobile Number</label><input id="mobile" maxlength="10" inputmode="numeric" placeholder="10-digit mobile number (as given at billing)">
-<button class="btn full" onclick="login()" id="loginBtn">Continue</button>
+<button class="btn full" onclick="login()" id="loginBtn">Log In</button>
 <p id="loginErr" class="err"></p>
 <div class="note">Your UHID is printed on your bill/prescription slip. Mobile number must match the one given at the billing counter.</div></div></section>
 
@@ -152,12 +152,12 @@ async function login(){
   const patientMobileMatch = patient && (patient.form?.mobile||"").replace(/\D/g,"").slice(-10) === mobile;
   if(!patient && !matchedBill){
    err.textContent="No record found for this UHID. Please check and try again, or contact the clinic.";
-   btn.disabled=false; btn.textContent="Continue";
+   btn.disabled=false; btn.textContent="Log In";
    return;
   }
   if(!matchedBill && !patientMobileMatch){
    err.textContent="Mobile number does not match our records for this UHID. Please contact the clinic if this seems wrong.";
-   btn.disabled=false; btn.textContent="Continue";
+   btn.disabled=false; btn.textContent="Log In";
    return;
   }
   const displayName=matchedBill?.name||patient?.form?.name||'Patient';
@@ -176,7 +176,7 @@ async function login(){
  }catch(e){
   err.textContent="Could not connect right now. Please try again in a moment.";
  }finally{
-  btn.disabled=false; btn.textContent="Continue";
+  btn.disabled=false; btn.textContent="Log In";
  }
 }
 
