@@ -1,3 +1,65 @@
+const APPOINTMENT_DURATION_MINUTES = 10;
+const APPOINTMENT_WINDOWS = [[600, 840], [1080, 1260]]; // 10:00-14:00, 18:00-21:00
+function appointmentTimeMinutes(value) {
+  const m = String(value || "").match(/^(\d{2}):(\d{2})$/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+function appointmentMinutesTime(value) {
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+function normalizeAppointmentMinute(value) {
+  if (value < APPOINTMENT_WINDOWS[0][0]) return APPOINTMENT_WINDOWS[0][0];
+  if (value >= APPOINTMENT_WINDOWS[0][1] && value < APPOINTMENT_WINDOWS[1][0]) return APPOINTMENT_WINDOWS[1][0];
+  if (value >= APPOINTMENT_WINDOWS[1][1]) return null;
+  if (value < APPOINTMENT_WINDOWS[0][1] && value + APPOINTMENT_DURATION_MINUTES > APPOINTMENT_WINDOWS[0][1]) return APPOINTMENT_WINDOWS[1][0];
+  if (value < APPOINTMENT_WINDOWS[1][1] && value + APPOINTMENT_DURATION_MINUTES > APPOINTMENT_WINDOWS[1][1]) return null;
+  return value;
+}
+function nextAvailableAppointmentTime(requestedTime, bookedTimes) {
+  let candidate = appointmentTimeMinutes(requestedTime);
+  if (candidate === null) candidate = APPOINTMENT_WINDOWS[0][0];
+  for (let i = 0; i < 200; i++) {
+    candidate = normalizeAppointmentMinute(candidate);
+    if (candidate === null) return null;
+    const conflicts = (bookedTimes || []).map(appointmentTimeMinutes).filter(v => v !== null)
+      .filter(v => candidate < v + APPOINTMENT_DURATION_MINUTES && candidate + APPOINTMENT_DURATION_MINUTES > v);
+    if (!conflicts.length) return appointmentMinutesTime(candidate);
+    candidate = Math.max(candidate + 1, ...conflicts.map(v => v + APPOINTMENT_DURATION_MINUTES));
+  }
+  return null;
+}
+function nextCalendarDate(date) {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+async function getBookedAppointmentTimes(env, date) {
+  const { results } = await env.DB.prepare(
+    "SELECT pref_time FROM appointments WHERE pref_date = ? AND status != 'cancelled' ORDER BY pref_time ASC"
+  ).bind(date).all();
+  const times = results.map(r => String(r.pref_time || "").slice(0, 5)).filter(Boolean);
+  // OPD Next Visit (datetime-local format) also occupies a 10-minute slot.
+  const opdRes = await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients", { cache: "no-store" });
+  if (!opdRes.ok) throw new Error("OPD appointment availability is temporarily unavailable");
+  const patients = await opdRes.json();
+  if (!Array.isArray(patients)) throw new Error("Unexpected OPD appointment response");
+  patients.forEach(p => (p.visits || []).forEach(v => {
+    const next = String(v.next || "");
+    if (next.length >= 16 && next.slice(0, 10) === date) times.push(next.slice(11, 16));
+  }));
+  return [...new Set(times)].sort();
+}
+async function findNextAppointmentAcrossDates(env, startDate, requestedTime) {
+  let date = startDate;
+  for (let offset = 0; offset <= 30; offset++) {
+    const booked = await getBookedAppointmentTimes(env, date);
+    const time = nextAvailableAppointmentTime(offset === 0 ? requestedTime : "10:00", booked);
+    if (time) return { date, time };
+    date = nextCalendarDate(date);
+  }
+  return null;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -193,37 +255,15 @@ export default {
       return json({ ok: true });
     }
 
-    // Public: check booked time slots for a date (no personal info exposed)
+    // Public: return booked appointment start times, including OPD Next Visit.
     if (path === "/api/appointments/by-date" && request.method === "GET") {
       const date = url.searchParams.get("date");
-      if (!date) return json({ error: "date required" }, 400);
-      const { results } = await env.DB.prepare(
-        "SELECT pref_time FROM appointments WHERE pref_date = ? AND status != 'cancelled' ORDER BY pref_time ASC"
-      ).bind(date).all();
-      const times = results.map(r => r.pref_time).filter(Boolean);
-
-      // Also mark as booked any follow-up time the doctor has already fixed
-      // in the OPD app (Visit History -> Next Visit), so a website visitor
-      // can't book the same time slot. Only visits with a time component
-      // (new datetime-local records) can block a specific slot; old
-      // date-only records don't name an hour, so they're skipped here.
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "valid date required" }, 400);
       try {
-        const opdRes = await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients", { cache: "no-store" });
-        if (opdRes.ok) {
-          const patients = await opdRes.json();
-          patients.forEach(p => {
-            (p.visits || []).forEach(v => {
-              if (v.next && v.next.length > 10 && v.next.slice(0, 10) === date) {
-                times.push(v.next.slice(11, 16));
-              }
-            });
-          });
-        }
+        return json(await getBookedAppointmentTimes(env, date));
       } catch (e) {
-        // OPD worker unreachable - don't block the public slot check over it
+        return json({ error: "Could not verify all appointment sources. Please try again shortly." }, 503);
       }
-
-      return json([...new Set(times)].sort());
     }
 
     // Public: patient looks up their own appointments by phone
@@ -236,16 +276,38 @@ export default {
       return json(results);
     }
 
-    // Public: submit a new appointment request
+    // Public: submit a new appointment request; server-side check prevents stale browser availability.
     if (path === "/api/appointments" && request.method === "POST") {
       const body = await request.json();
       if (!body.name || !body.phone) return json({ error: "name and phone required" }, 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) || !/^\d{2}:\d{2}$/.test(String(body.time || ""))) {
+        return json({ error: "Please select a valid appointment date and time." }, 400);
+      }
+      let booked;
+      try {
+        booked = await getBookedAppointmentTimes(env, body.date);
+      } catch (e) {
+        return json({ error: "Could not verify availability across the website and OPD. Please try again shortly." }, 503);
+      }
+      const suggestedTime = nextAvailableAppointmentTime(body.time, booked);
+      if (!suggestedTime || suggestedTime !== body.time) {
+        let suggestion = suggestedTime ? { date: body.date, time: suggestedTime } : null;
+        if (!suggestion) {
+          try { suggestion = await findNextAppointmentAcrossDates(env, nextCalendarDate(body.date), "10:00"); }
+          catch (e) { return json({ error: "Could not find a vacant slot because OPD availability could not be verified." }, 503); }
+        }
+        return json({
+          error: suggestedTime ? "That time is busy or outside clinic hours." : "No vacant slot remains on this date.",
+          suggestedDate: suggestion?.date || "",
+          suggestedTime: suggestion?.time || ""
+        }, 409);
+      }
       await env.DB.prepare(
         `INSERT INTO appointments (name, phone, patient_type, service, pref_date, pref_time, message, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
       ).bind(
         body.name, body.phone, body.patientType || "", body.service || "",
-        body.date || "", body.time || "", body.message || "", Date.now()
+        body.date, body.time, body.message || "", Date.now()
       ).run();
       return json({ ok: true });
     }
