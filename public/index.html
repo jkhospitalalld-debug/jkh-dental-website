@@ -241,9 +241,9 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 <p class="sub">Send your details and preferred time. The clinic can confirm your appointment by phone.</p>
 <div class="about-box" style="max-width:720px;margin:auto">
 <div style="background:var(--bg);border-radius:12px;padding:16px;margin-bottom:20px">
-<label style="font-weight:700;font-size:13px;color:var(--navy);display:block;margin-bottom:8px">Appointment Availability</label>
+<label style="font-weight:700;font-size:13px;color:var(--navy);display:block;margin-bottom:8px">Check Available Time Slots</label>
 <input id="checkDate" type="date" style="margin-bottom:8px">
-<button type="button" class="btn" style="width:100%;background:var(--navy)" onclick="checkSlots()">Check Availability</button>
+<button type="button" class="btn" style="width:100%;background:var(--navy)" onclick="checkSlots()">Check Booked Slots</button>
 <div id="slotsResult" style="margin-top:10px;font-size:13px"></div>
 </div>
 <form onsubmit="sendAppointment(event)">
@@ -251,9 +251,8 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 <input id="phone" type="tel" placeholder="Mobile Number" required>
 <select id="patientType" required><option value="">New or Existing Patient?</option><option>New Patient</option><option>Existing Patient</option></select>
 <select id="service" required><option value="">Select Treatment</option><option>Dental Consultation</option><option>Root Canal Treatment</option><option>Crown / Bridge</option><option>Dental Implant</option><option>Extraction / Oral Surgery</option><option>Other</option></select>
-<input id="date" type="date" required aria-label="Appointment date">
-<input id="time" type="time" step="60" required aria-label="Preferred appointment time">
-<p id="slotHint" aria-live="polite" style="font-size:12px;margin:-8px 0 10px;color:var(--muted)">Consultation slots are 10 minutes. Clinic hours: 10 AM–2 PM and 6 PM–9 PM. Busy times are adjusted automatically.</p>
+<input id="date" type="date" required>
+<input id="time" type="time" required>
 <textarea id="message" placeholder="Any symptoms or message (optional)"></textarea>
 <button class="btn" type="submit">Book Appointment</button>
 <p id="apptMsg" style="font-size:13px;margin-top:8px"></p>
@@ -272,7 +271,7 @@ nav a{width:100%;padding:16px 0;border-bottom:1px solid #eef3f3;font-size:16px}
 <p>📍 38/53 D, Bai Ka Bag Chauraha, Old G.T. Road, In Front of Topandas, Prayagraj, Uttar Pradesh</p>
 <p>📞 <a href="tel:+919450595694" style="color:#fff;text-decoration:underline">9450595694</a> / <a href="tel:+915324050906" style="color:#fff;text-decoration:underline">0532-4050906</a></p>
 <p>💬 WhatsApp: <a href="https://wa.me/919450595694" style="color:#fff;text-decoration:underline" target="_blank">9450595694</a></p>
-<p>🕒 Mon to Sat<br>Morning: 10:00 AM – 2:00 PM<br>Evening: 6:00 PM – 9:00 PM</p>
+<p>🕒 Mon to Sat<br>Morning: 11:00 AM – 2:30 PM<br>Evening: 6:00 PM – 9:00 PM</p>
 <p>🗺️ <a href="https://maps.app.goo.gl/M7qPZF3NCyrRfuhk9" style="color:#fff;text-decoration:underline" target="_blank">View on Google Maps</a></p>
 </div>
 <div class="contact-card">
@@ -387,113 +386,25 @@ async function loadCases(){
  }
 }
 loadCases();
-const CONSULTATION_MINUTES=10;
-const CLINIC_WINDOWS=[[600,840],[1080,1260]]; // [opening, closing], minutes after midnight
-function localDateValue(d=new Date()){
- return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-function timeToMinutes(value){
- const m=String(value||'').match(/^(\d{2}):(\d{2})$/);
- return m ? Number(m[1])*60+Number(m[2]) : null;
-}
-function minutesToTime(value){return `${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;}
-function normalizeClinicTime(value){
- if(value<600) return 600;
- if(value>=840 && value<1080) return 1080;
- if(value>=1260) return null;
- if(value<840 && value+CONSULTATION_MINUTES>840) return 1080;
- if(value<1260 && value+CONSULTATION_MINUTES>1260) return null;
- return value;
-}
-function nextFreeTime(requestedTime,busyTimes){
- let candidate=timeToMinutes(requestedTime);
- if(candidate===null) candidate=600;
- for(let i=0;i<100;i++){
-  candidate=normalizeClinicTime(candidate);
-  if(candidate===null) return null;
-  const conflicts=(busyTimes||[]).map(timeToMinutes).filter(v=>v!==null).filter(v=>candidate<v+CONSULTATION_MINUTES && candidate+CONSULTATION_MINUTES>v);
-  if(!conflicts.length) return minutesToTime(candidate);
-  candidate=Math.max(candidate+1,...conflicts.map(v=>v+CONSULTATION_MINUTES));
- }
- return null;
-}
-async function getBookedTimes(date){
- const res=await fetch('/api/appointments/by-date?date='+encodeURIComponent(date),{cache:'no-store'});
- let data;
- try{data=await res.json();}catch(_){data=null;}
- if(!res.ok){
-  const detail=data&&typeof data.error==='string'?data.error:'';
-  if(res.status===404) throw new Error('Availability API route not found (HTTP 404). Deploy the updated src/index.js Worker.');
-  throw new Error(detail||`Availability check failed (HTTP ${res.status}). Please verify the website API deployment.`);
- }
- if(!Array.isArray(data)) throw new Error((data&&data.error)||'Unexpected availability response from server.');
- return data;
-}
-function setSlotHint(message,color='var(--muted)'){
- const hint=document.getElementById('slotHint');
- if(hint){hint.textContent=message;hint.style.color=color;}
-}
-async function findNextSlotAcrossDates(startDate,requestedTime){
- const start=new Date(startDate+'T12:00:00');
- for(let offset=1;offset<=30;offset++){
-  const d=new Date(start);d.setDate(start.getDate()+offset);
-  const date=localDateValue(d);
-  const busy=await getBookedTimes(date);
-  const time=nextFreeTime('10:00',busy);
-  if(time) return {date,time};
- }
- return null;
-}
-async function handleSlotChange(){
- const dateInput=document.getElementById('date');
- const timeInput=document.getElementById('time');
- const date=dateInput.value;const time=timeInput.value;
- if(!date || !time){setSlotHint('Choose a date and preferred time. Busy times will be adjusted automatically.');return;}
- setSlotHint('Checking slot availability…');
- try{
-  const busy=await getBookedTimes(date);
-  const suggested=nextFreeTime(time,busy);
-  if(suggested){
-   if(suggested!==time){
-    timeInput.value=suggested;
-    setSlotHint(`That time is busy or outside clinic hours. Suggested next available time: ${suggested}.`, '#9a6700');
-   }else{
-    setSlotHint(`This time appears available for a ${CONSULTATION_MINUTES}-minute consultation. Availability is verified again when you submit.`, '#16834a');
-   }
-   return;
-  }
-  setSlotHint('No vacant slot remains on this date. Finding the next available date…', '#9a6700');
-  const next=await findNextSlotAcrossDates(date,time);
-  if(next){dateInput.value=next.date;document.getElementById('checkDate').value=next.date;timeInput.value=next.time;
-   setSlotHint(`Today’s slots are full. Moved to the next available date: ${next.date} at ${next.time}.`, '#9a6700');
-  }else{
-   setSlotHint('No vacant slot found in the next 30 days. Please call the clinic.', '#d64545');
-  }
- }catch(err){setSlotHint(err.message||'Could not check availability. Please try again.', '#d64545');}
-}
 async function checkSlots(){
- const date=document.getElementById('checkDate').value;
- const result=document.getElementById('slotsResult');
- if(!date){result.style.color='#d64545';result.textContent='Please select a date first.';return;}
- result.style.color='var(--muted)';result.textContent='Checking availability…';
+ const date=document.getElementById("checkDate").value;
+ const result=document.getElementById("slotsResult");
+ if(!date){result.style.color="#d64545";result.textContent="Please select a date first.";return;}
+ result.style.color="var(--muted)";result.textContent="Checking...";
  try{
-  const times=await getBookedTimes(date);
-  const formatted=times.map(t=>String(t).slice(0,5)).filter(Boolean);
-  if(!formatted.length){result.style.color='#16834a';result.textContent='No booked times found. Select a time in clinic hours; the server will verify it when submitted.';}
-  else{result.style.color='var(--ink)';result.innerHTML='Booked appointment start times (10-minute consultations):<br>'+formatted.map(t=>`<span style="display:inline-block;background:#fff3cd;color:#7a5b00;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;margin:4px 6px 0 0">${t}</span>`).join('');}
- }catch(e){result.style.color='#d64545';result.textContent=e.message||'Could not check availability. Please try again.';}
+  const res=await fetch("/api/appointments/by-date?date="+date);
+  const times=await res.json();
+  if(!times.length){
+   result.style.color="#18a85b";
+   result.textContent="No appointments booked yet for this date — most slots are free.";
+  }else{
+   result.style.color="var(--ink)";
+   result.innerHTML="Already booked times on this date:<br>"+times.map(t=>`<span style="display:inline-block;background:#fff3cd;color:#7a5b00;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;margin:4px 6px 0 0">${t}</span>`).join("");
+  }
+ }catch(e){
+  result.style.color="#d64545";result.textContent="Could not check availability. Please try again.";
+ }
 }
-const appointmentDateInput=document.getElementById('date');
-const appointmentTimeInput=document.getElementById('time');
-const todayLocal=localDateValue();
-appointmentDateInput.min=todayLocal;
-document.getElementById('checkDate').min=todayLocal;
-appointmentDateInput.addEventListener('change',()=>{document.getElementById('checkDate').value=appointmentDateInput.value;handleSlotChange();});
-appointmentTimeInput.addEventListener('change',handleSlotChange);
-document.getElementById('checkDate').addEventListener('change',async()=>{
- const d=document.getElementById('checkDate').value;
- if(d && appointmentDateInput.value!==d){appointmentDateInput.value=d;if(appointmentTimeInput.value) await handleSlotChange();}
-});
 
 async function sendAppointment(e){
  e.preventDefault();
@@ -514,17 +425,7 @@ async function sendAppointment(e){
    headers:{"Content-Type":"application/json"},
    body:JSON.stringify({name,phone,patientType,service,date,time,message:msg})
   });
-  if(res.status===409){
-   const conflict=await res.json();
-   if(conflict.suggestedDate)document.getElementById('date').value=conflict.suggestedDate;
-   if(conflict.suggestedTime)document.getElementById('time').value=conflict.suggestedTime;
-   if(conflict.suggestedDate)document.getElementById('checkDate').value=conflict.suggestedDate;
-   const suggestion=conflict.suggestedDate&&conflict.suggestedTime?` Suggested slot: ${conflict.suggestedDate} at ${conflict.suggestedTime}. Please review and submit again.`:'';
-   apptMsg.style.color="#9a6700";apptMsg.textContent=(conflict.error||'That slot is no longer available.')+suggestion;
-   setSlotHint((conflict.error||'That slot is no longer available.')+suggestion,'#9a6700');
-   return;
-  }
-  if(!res.ok){const errorData=await res.json().catch(()=>({}));throw new Error(errorData.error||"Could not save appointment");}
+  if(!res.ok)throw new Error("Could not save appointment");
   apptMsg.style.color="#18a85b";
   apptMsg.textContent="Appointment request saved! Opening WhatsApp to confirm...";
   const text=`Appointment Request%0AName: ${encodeURIComponent(name)}%0AMobile: ${encodeURIComponent(phone)}%0APatient Type: ${encodeURIComponent(patientType)}%0ATreatment: ${encodeURIComponent(service)}%0ADate: ${encodeURIComponent(date)}%0ATime: ${encodeURIComponent(time)}%0AMessage: ${encodeURIComponent(msg||"None")}`;
@@ -532,7 +433,7 @@ async function sendAppointment(e){
   e.target.reset();
  }catch(err){
   apptMsg.style.color="#d64545";
-  apptMsg.textContent=err && err.message ? err.message : "Could not save appointment. Please try again or call the clinic.";
+  apptMsg.textContent="Could not save appointment. Please try again or call the clinic.";
  }finally{
   btn.disabled=false;btn.textContent="Book Appointment";
  }
