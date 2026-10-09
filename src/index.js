@@ -262,7 +262,15 @@ export default {
       try {
         return json(await getBookedAppointmentTimes(env, date));
       } catch (e) {
-        return json({ error: "Could not verify all appointment sources. Please try again shortly." }, 503);
+        const message = String(e && e.message || "");
+        // Safe operational detail helps distinguish an OPD API outage from a database/API deployment issue.
+        if (message === "OPD appointment availability is temporarily unavailable") {
+          return json({ error: "OPD appointment service could not be reached. Check the Bill & Press Worker deployment and /api/patients endpoint." }, 503);
+        }
+        if (message === "Unexpected OPD appointment response") {
+          return json({ error: "OPD appointment service returned an unexpected response. Check /api/patients." }, 503);
+        }
+        return json({ error: "Website appointment availability could not be read. Check the website Worker deployment and D1 database binding." }, 503);
       }
     }
 
@@ -287,7 +295,14 @@ export default {
       try {
         booked = await getBookedAppointmentTimes(env, body.date);
       } catch (e) {
-        return json({ error: "Could not verify availability across the website and OPD. Please try again shortly." }, 503);
+        const message = String(e && e.message || "");
+        if (message === "OPD appointment availability is temporarily unavailable") {
+          return json({ error: "OPD appointment service could not be reached. Please check the Bill & Press Worker before accepting bookings." }, 503);
+        }
+        if (message === "Unexpected OPD appointment response") {
+          return json({ error: "OPD appointment service returned an unexpected response. Please check /api/patients." }, 503);
+        }
+        return json({ error: "Website appointment availability could not be read. Please check the website Worker and D1 database binding." }, 503);
       }
       const suggestedTime = nextAvailableAppointmentTime(body.time, booked);
       if (!suggestedTime || suggestedTime !== body.time) {
