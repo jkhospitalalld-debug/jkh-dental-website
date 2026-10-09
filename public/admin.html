@@ -468,8 +468,12 @@ async function loadAppointments(){
    const patients=await bres.json();
    patients.forEach(p=>{
     (p.visits||[]).forEach(v=>{
-     if(v.next===selectedDate){
-      billingSelected.push({name:p.form?.name||'Patient',phone:'',patientType:'',service:'Follow-up visit',time:'',source:'Scheduled by doctor (UHID: '+p.id+')'});
+     // v.next can be a plain date "YYYY-MM-DD" (old records) or a
+     // datetime-local value "YYYY-MM-DDTHH:MM" (new records with a time).
+     // Compare only the date part so both formats match correctly.
+     if(v.next && v.next.slice(0,10)===selectedDate){
+      const apptTime=v.next.length>10?v.next.slice(11,16):'';
+      billingSelected.push({name:p.form?.name||'Patient',phone:'',patientType:'',service:'Follow-up visit',time:apptTime,source:'Scheduled by doctor (UHID: '+p.id+')'});
      }
     });
    });
@@ -523,7 +527,7 @@ async function fetchApptBadgeCount(){
    const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients",{cache:"no-store"});
    if(bres.ok){
     const patients=await bres.json();
-    patients.forEach(p=>(p.visits||[]).forEach(v=>{if(v.next===todayStr)count++;}));
+    patients.forEach(p=>(p.visits||[]).forEach(v=>{if(v.next && v.next.slice(0,10)===todayStr)count++;}));
    }
   }catch(e){}
   updateApptBadge(count);

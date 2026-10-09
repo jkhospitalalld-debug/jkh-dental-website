@@ -190,6 +190,21 @@ async function loadAll(){
 
 function esc(s){return String(s==null?'':s).replace(/</g,"&lt;");}
 
+// Formats a "Next Visit" value (plain date "YYYY-MM-DD" or datetime-local
+// "YYYY-MM-DDTHH:MM") into a readable "DD-MM-YYYY, hh:mm AM/PM" string.
+function fmtNextVisit(v){
+ if(!v) return '';
+ const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+ if(!m) return v;
+ const[,y,mo,d,h,mi]=m;
+ const datePart=`${d}-${mo}-${y}`;
+ if(h===undefined) return datePart;
+ let hr=parseInt(h,10);
+ const ampm=hr>=12?'PM':'AM';
+ hr=hr%12; if(hr===0) hr=12;
+ return `${datePart}, ${String(hr).padStart(2,'0')}:${mi} ${ampm}`;
+}
+
 function todayStr(){return new Date().toISOString().slice(0,10);}
 
 function renderNextAppointment(){
@@ -199,8 +214,10 @@ function renderNextAppointment(){
  (STATE.appts||[]).filter(a=>a.status!=='cancelled' && a.pref_date>=today).forEach(a=>{
   candidates.push({date:a.pref_date,time:a.pref_time||'',label:a.service||'Consultation',source:'Requested online',status:a.status});
  });
- (STATE.patient?.visits||[]).filter(v=>v.next && v.next>=today).forEach(v=>{
-  candidates.push({date:v.next,time:'',label:'Follow-up visit',source:'Scheduled by doctor',status:'confirmed'});
+ // v.next can be a plain date "YYYY-MM-DD" (old records) or a
+ // datetime-local value "YYYY-MM-DDTHH:MM" (new records with a time).
+ (STATE.patient?.visits||[]).filter(v=>v.next && v.next.slice(0,10)>=today).forEach(v=>{
+  candidates.push({date:v.next.slice(0,10),time:v.next.length>10?v.next.slice(11,16):'',label:'Follow-up visit',source:'Scheduled by doctor',status:'confirmed'});
  });
  if(!candidates.length){
   nextBox.innerHTML='<p class="mut">No upcoming appointment. Use "Book Appointment" above.</p>';
@@ -242,7 +259,7 @@ function loadTreatment(){
  }
  if(visits.length){
   html+='<h3 style="font-size:14px;color:var(--n);margin-top:14px">Visit History</h3>';
-  html+=visits.map(v=>`<div class="row"><span><b>${esc(v.date||'-')}</b><br><span class="mut">${esc(v.notes||'No notes')}</span></span>${v.next?`<span class="pill">Next: ${esc(v.next)}</span>`:''}</div>`).join('');
+  html+=visits.map(v=>`<div class="row"><span><b>${esc(v.date||'-')}</b><br><span class="mut">${esc(v.notes||'No notes')}</span></span>${v.next?`<span class="pill">Next: ${esc(fmtNextVisit(v.next))}</span>`:''}</div>`).join('');
  }
  el.innerHTML=html;
 }
@@ -435,7 +452,7 @@ async function downloadRxPDF(){
     const clinicAddr='38/53 D Bai Ka Bagh, Prayagraj —CMO Reg 3351/3881 9450595694 • jkhospitalalld@gmail.com';
     const medRows=meds.map((m,i)=>`<tr><td style="padding:6px;border:1px solid #ddd;text-align:center">${i+1}</td><td style="padding:6px;border:1px solid #ddd">${escRx(m.name)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.dose)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.freq)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(m.duration)}</td></tr>`).join('');
     const procRows=items.map(p=>`<tr><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(p.code)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(p.procedure)}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:60px;height:24px;text-align:center;font-size:14px">${escRx(p.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;text-align:center;font-size:14px">${escRx(p.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:60px;height:24px;text-align:center;font-size:14px">${escRx(p.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;text-align:center;font-size:14px">${escRx(p.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd;text-align:center">${escRx(p.no)}</td></tr>`).join('');
-    const visitRows=visits.map(v=>{const proc=master.find(x=>x.code===v.code);return `<tr><td style="padding:6px;border:1px solid #ddd">${escRx(v.date)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(proc?proc.procedure:(v.procedure||v.code||''))}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd">${escRx(v.notes)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(v.next)}</td></tr>`}).join('');
+    const visitRows=visits.map(v=>{const proc=master.find(x=>x.code===v.code);return `<tr><td style="padding:6px;border:1px solid #ddd">${escRx(v.date)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(proc?proc.procedure:(v.procedure||v.code||''))}</td><td style="padding:6px;border:1px solid #ddd;text-align:center"><table style="margin:auto;border-collapse:collapse"><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[0]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[1]||'')}</td></tr><tr><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[2]||'')}</td><td style="border:1px solid #000;width:60px;height:24px;font-size:14px;text-align:center">${escRx(v.boxes?.[3]||'')}</td></tr></table></td><td style="padding:6px;border:1px solid #ddd">${escRx(v.notes)}</td><td style="padding:6px;border:1px solid #ddd">${escRx(fmtNextVisit(v.next))}</td></tr>`}).join('');
     const xrayHtml=xrays.length?`<h3 style="margin-top:18px">X-Ray Images</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${xrays.map(x=>`<img src="${x.data}" style="width:150px;height:150px;object-fit:contain;background:#000;border:1px solid #ccc;border-radius:6px">`).join('')}</div>`:'';
     const rxHtml=`<html><head><meta charset="utf-8"><title>Rx - ${escRx(form.name||'Patient')}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#111}h2{margin:0 0 6px}.meta{margin-top:6px;color:#555}.rx-table{width:100%;border-collapse:collapse;margin-top:12px}.rx-table th{background:#fafafa;padding:8px;border:1px solid #ddd}.rx-table td{padding:8px;border:1px solid #ddd}.footer{margin-top:30px;color:#666;font-size:13px}@media print{body{padding:0}}</style></head><body><h2>${clinicName}</h2><div class="meta">${clinicAddr}</div><hr><div><strong>UHID:</strong> ${escRx(STATE.uhid)} &nbsp;&nbsp; <strong>Date:</strong> ${escRx(form.date||'')}</div><div><strong>Patient:</strong> ${escRx(form.name||'')} &nbsp; <strong>Age:</strong> ${escRx(form.age||'')} &nbsp; <strong>Sex:</strong> ${escRx(form.sex||'')} &nbsp; <strong>Category:</strong> ${escRx(cats[form.category]||form.category||'')}</div><div style="margin-top:8px"><strong>PMH:</strong> ${escRx(form.pmh||'---')}</div><div style="margin-top:8px"><strong>Chief Complaint/TEST:</strong> ${escRx(form.cc||'---')}</div><h3 style="margin-top:12px">Medicines</h3><table class="rx-table"><thead><tr><th style="width:6%">#</th><th>Medicine</th><th style="width:18%">Dose</th><th style="width:14%">Frequency</th><th style="width:14%">Duration</th></tr></thead><tbody>${medRows||'<tr><td colspan="5" style="padding:8px;text-align:center;color:#666">No medicines prescribed.</td></tr>'}</tbody></table><h3 style="margin-top:12px">Procedures</h3><table class="rx-table"><thead><tr><th style="width:20%">Code</th><th>Procedure</th><th style="width:20%">Boxes</th><th style="width:14%">Qty</th></tr></thead><tbody>${procRows||'<tr><td colspan="4" style="padding:8px;text-align:center;color:#666">No procedures added.</td></tr>'}</tbody></table><h3 style="margin-top:18px">Visit History</h3><table class="rx-table"><thead><tr><th style="width:16%">Date</th><th style="width:28%">Procedure</th><th style="width:18%">Tooth</th><th>Clinical Notes</th><th style="width:16%">Next Visit</th></tr></thead><tbody>${visitRows||'<tr><td colspan="5" style="text-align:center;color:#666">No Visit History</td></tr>'}</tbody></table>${xrayHtml}<div class="footer">Signature: ____________________ &nbsp;&nbsp; SIGN & STAMP</div></body></html>`;
     await printDocument(rxHtml, `Rx_${String(form.name||'Patient').replace(/[^a-zA-Z0-9_-]/g,'_')}_${String(STATE.uhid||'').replace(/[^a-zA-Z0-9_-]/g,'_')}.pdf`);
