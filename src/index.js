@@ -200,7 +200,30 @@ export default {
       const { results } = await env.DB.prepare(
         "SELECT pref_time FROM appointments WHERE pref_date = ? AND status != 'cancelled' ORDER BY pref_time ASC"
       ).bind(date).all();
-      return json(results.map(r => r.pref_time).filter(Boolean));
+      const times = results.map(r => r.pref_time).filter(Boolean);
+
+      // Also mark as booked any follow-up time the doctor has already fixed
+      // in the OPD app (Visit History -> Next Visit), so a website visitor
+      // can't book the same time slot. Only visits with a time component
+      // (new datetime-local records) can block a specific slot; old
+      // date-only records don't name an hour, so they're skipped here.
+      try {
+        const opdRes = await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients", { cache: "no-store" });
+        if (opdRes.ok) {
+          const patients = await opdRes.json();
+          patients.forEach(p => {
+            (p.visits || []).forEach(v => {
+              if (v.next && v.next.length > 10 && v.next.slice(0, 10) === date) {
+                times.push(v.next.slice(11, 16));
+              }
+            });
+          });
+        }
+      } catch (e) {
+        // OPD worker unreachable - don't block the public slot check over it
+      }
+
+      return json([...new Set(times)].sort());
     }
 
     // Public: patient looks up their own appointments by phone
