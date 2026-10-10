@@ -209,23 +209,35 @@ export default {
       // name an hour, so they're assumed to be at the clinic's first
       // session start time (11:00 AM) instead of being skipped.
       const DEFAULT_OPD_TIME = "11:00";
+      // TEMP DEBUG: set ?debug=1 to see exactly why OPD times are/aren't
+      // merging in, instead of guessing. Remove this block once confirmed
+      // working.
+      const debug = url.searchParams.get("debug") === "1";
+      const debugInfo = { opdFetched: false, opdStatus: null, opdPatientCount: null, opdMatchedVisits: [], opdError: null };
       try {
         const opdRes = await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients", { cache: "no-store" });
+        debugInfo.opdFetched = true;
+        debugInfo.opdStatus = opdRes.status;
         if (opdRes.ok) {
           const patients = await opdRes.json();
+          debugInfo.opdPatientCount = patients.length;
           patients.forEach(p => {
             (p.visits || []).forEach(v => {
               if (v.next && v.next.slice(0, 10) === date) {
-                times.push(v.next.length > 10 ? v.next.slice(11, 16) : DEFAULT_OPD_TIME);
+                const t = v.next.length > 10 ? v.next.slice(11, 16) : DEFAULT_OPD_TIME;
+                times.push(t);
+                if (debug) debugInfo.opdMatchedVisits.push({ uhid: p.id, next: v.next, usedTime: t });
               }
             });
           });
         }
       } catch (e) {
-        // OPD worker unreachable - don't block the public slot check over it
+        debugInfo.opdError = String(e && e.message || e);
       }
 
-      return json([...new Set(times)].sort());
+      const finalTimes = [...new Set(times)].sort();
+      if (debug) return json({ times: finalTimes, debug: debugInfo });
+      return json(finalTimes);
     }
 
     // Public: patient looks up their own appointments by phone
