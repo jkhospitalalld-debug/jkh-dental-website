@@ -202,33 +202,8 @@ export default {
       ).bind(date).all();
       const times = results.map(r => r.pref_time).filter(Boolean);
 
-      // Also mark as booked any follow-up the doctor has already fixed in
-      // the OPD app (Visit History -> Next Visit), so a website visitor
-      // can't take the same slot. New records carry an exact time
-      // ("2026-10-15T11:20"); older/date-only records ("2026-10-15") don't
-      // name an hour, so they're assumed to be at the clinic's first
-      // session start time (11:00 AM) instead of being skipped.
-      const DEFAULT_OPD_TIME = "11:00";
-      try {
-        // Note: the "cache" option on RequestInit isn't implemented in the
-        // Workers runtime (it throws) - a plain fetch() to another Worker
-        // is never edge-cached anyway, so no option is needed here.
-        const opdRes = await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients");
-        if (opdRes.ok) {
-          const patients = await opdRes.json();
-          patients.forEach(p => {
-            (p.visits || []).forEach(v => {
-              if (v.next && v.next.slice(0, 10) === date) {
-                times.push(v.next.length > 10 ? v.next.slice(11, 16) : DEFAULT_OPD_TIME);
-              }
-            });
-          });
-        }
-      } catch (e) {
-        // OPD worker unreachable - don't block the public slot check over it
-      }
-
-      return json([...new Set(times)].sort());
+      // Doctor-fixed OPD follow-ups are merged in the browser (same as admin.html).
+      return json(times.sort());
     }
 
     // Public: patient looks up their own appointments by phone
