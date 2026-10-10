@@ -3,6 +3,37 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Reception panel (separate site, jkh-billand-pres): read-only list of
+    // website appointment requests for one date. Needs the RECEPTION_KEY
+    // secret (set it in Cloudflare -> Settings -> Variables and Secrets).
+    if (path === "/api/reception/appointments") {
+      const cors = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, X-Reception-Key",
+        "Access-Control-Allow-Methods": "GET, OPTIONS"
+      };
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+      if (request.method !== "GET") return new Response("Method not allowed", { status: 405, headers: cors });
+      const key = request.headers.get("X-Reception-Key") || "";
+      if (!env.RECEPTION_KEY || key !== env.RECEPTION_KEY) {
+        return new Response(JSON.stringify({ error: "Reception key required" }), {
+          status: 401, headers: { "Content-Type": "application/json", ...cors }
+        });
+      }
+      const date = url.searchParams.get("date") || "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return new Response(JSON.stringify({ error: "date required (YYYY-MM-DD)" }), {
+          status: 400, headers: { "Content-Type": "application/json", ...cors }
+        });
+      }
+      const { results } = await env.DB.prepare(
+        "SELECT id, name, phone, patient_type, service, pref_date, pref_time, message, status FROM appointments WHERE pref_date = ? AND status != 'cancelled' ORDER BY pref_time ASC, created_at ASC"
+      ).bind(date).all();
+      return new Response(JSON.stringify(results), {
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...cors }
+      });
+    }
+
     // Public: list all case photos
     if (path === "/api/cases" && request.method === "GET") {
       const { results } = await env.DB.prepare(
@@ -203,7 +234,10 @@ export default {
       const times = results.map(r => r.pref_time).filter(Boolean);
 
       // Doctor-fixed OPD follow-ups are merged in the browser (same as admin.html).
-      return json(times.sort());
+      // CORS open: times only (no names/phones), and the OPD app checks it for clashes.
+      return new Response(JSON.stringify(times.sort()), {
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" }
+      });
     }
 
     // Public: patient looks up their own appointments by phone
