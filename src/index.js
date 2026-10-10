@@ -209,35 +209,26 @@ export default {
       // name an hour, so they're assumed to be at the clinic's first
       // session start time (11:00 AM) instead of being skipped.
       const DEFAULT_OPD_TIME = "11:00";
-      // TEMP DEBUG: set ?debug=1 to see exactly why OPD times are/aren't
-      // merging in, instead of guessing. Remove this block once confirmed
-      // working.
-      const debug = url.searchParams.get("debug") === "1";
-      const debugInfo = { opdFetched: false, opdStatus: null, opdPatientCount: null, opdMatchedVisits: [], opdError: null };
       try {
-        const opdRes = await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients", { cache: "no-store" });
-        debugInfo.opdFetched = true;
-        debugInfo.opdStatus = opdRes.status;
+        // Note: the "cache" option on RequestInit isn't implemented in the
+        // Workers runtime (it throws) - a plain fetch() to another Worker
+        // is never edge-cached anyway, so no option is needed here.
+        const opdRes = await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients");
         if (opdRes.ok) {
           const patients = await opdRes.json();
-          debugInfo.opdPatientCount = patients.length;
           patients.forEach(p => {
             (p.visits || []).forEach(v => {
               if (v.next && v.next.slice(0, 10) === date) {
-                const t = v.next.length > 10 ? v.next.slice(11, 16) : DEFAULT_OPD_TIME;
-                times.push(t);
-                if (debug) debugInfo.opdMatchedVisits.push({ uhid: p.id, next: v.next, usedTime: t });
+                times.push(v.next.length > 10 ? v.next.slice(11, 16) : DEFAULT_OPD_TIME);
               }
             });
           });
         }
       } catch (e) {
-        debugInfo.opdError = String(e && e.message || e);
+        // OPD worker unreachable - don't block the public slot check over it
       }
 
-      const finalTimes = [...new Set(times)].sort();
-      if (debug) return json({ times: finalTimes, debug: debugInfo });
-      return json(finalTimes);
+      return json([...new Set(times)].sort());
     }
 
     // Public: patient looks up their own appointments by phone
