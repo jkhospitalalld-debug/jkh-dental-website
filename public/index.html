@@ -410,10 +410,41 @@ function minutesToDisplay(m){
  h=h%12; if(h===0)h=12;
  return `${h}:${String(mi).padStart(2,"0")} ${ampm}`;
 }
+// Same two sources admin.html uses: website bookings (own API) + follow-ups
+// the doctor fixed in the OPD app (called straight from the browser).
+// Returns every booked time as "HH:MM", one entry per patient.
+async function fetchBookedTimes(date){
+ const times=[];
+ const res=await fetch("/api/appointments/by-date?date="+date,{cache:"no-store"});
+ if(!res.ok) throw new Error("slots api failed");
+ (await res.json()).forEach(t=>times.push(t));
+ let undated=0;
+ try{
+  const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients",{cache:"no-store"});
+  if(bres.ok){
+   const patients=await bres.json();
+   patients.forEach(p=>{
+    (p.visits||[]).forEach(v=>{
+     // v.next: "YYYY-MM-DD" (no time) or "YYYY-MM-DDTHH:MM"
+     if(v.next && v.next.slice(0,10)===date){
+      if(v.next.length>10) times.push(v.next.slice(11,16)); else undated++;
+     }
+    });
+   });
+  }
+ }catch(e){}
+ // Follow-ups with no clock time: give each the next free slot from morning start.
+ const taken=times.map(timeToMinutes).filter(m=>!isNaN(m));
+ for(let i=0;i<undated;i++){
+  const c=findNextVacantSlot(CLINIC_SESSIONS[0].start,taken);
+  if(c<0) break;
+  taken.push(c); times.push(minutesToTimeValue(c));
+ }
+ return times.sort();
+}
 async function fetchBusyMinutes(date){
  try{
-  const res=await fetch("/api/appointments/by-date?date="+date);
-  const times=await res.json();
+  const times=await fetchBookedTimes(date);
   return times.map(timeToMinutes).filter(m=>!isNaN(m));
  }catch(e){ return []; }
 }
@@ -451,20 +482,32 @@ async function checkSlots(){
  if(!date){result.style.color="#d64545";result.textContent="Please select a date first.";return;}
  result.style.color="var(--muted)";result.textContent="Checking...";
  try{
-  const res=await fetch("/api/appointments/by-date?date="+date);
-  const times=await res.json();
-  let html="";
-  if(!times.length){
-   html=`<span style="color:#18a85b">No appointments booked yet for this date — most slots are free.</span>`;
-  }else{
-   html=`<span style="color:var(--ink)">Already booked times on this date:</span><br>`+times.map(t=>`<span style="display:inline-block;background:#fff3cd;color:#7a5b00;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;margin:4px 6px 0 0">${t}</span>`).join("");
-  }
+  const times=await fetchBookedTimes(date);
   const busy=times.map(timeToMinutes).filter(m=>!isNaN(m));
+  let html=busy.length
+   ?`<span style="color:var(--ink)"><b>${busy.length}</b> appointment${busy.length>1?"s":""} already booked on this date.</span>`
+   :`<span style="color:#18a85b">No appointments booked yet for this date — all slots are free.</span>`;
+  // Full-day grid: every 10-minute slot of each session, booked vs free.
+  const chip="display:inline-block;padding:4px 9px;border-radius:20px;font-size:11.5px;font-weight:700;margin:3px 4px 0 0";
+  let freeCount=0;
+  CLINIC_SESSIONS.forEach((s,i)=>{
+   let cells="";
+   for(let m=s.start;m+SLOT_GAP_MINUTES<=s.end;m+=SLOT_GAP_MINUTES){
+    if(hasConflict(m,busy)){
+     cells+=`<span style="${chip};background:#fde2e2;color:#b02a2a;text-decoration:line-through">${minutesToDisplay(m)}</span>`;
+    }else{
+     freeCount++;
+     cells+=`<span style="${chip};background:#dff5e8;color:#127a43">${minutesToDisplay(m)}</span>`;
+    }
+   }
+   html+=`<div style="margin-top:10px;font-weight:700;color:var(--navy)">${i===0?"Morning":"Evening"} (${minutesToDisplay(s.start)} – ${minutesToDisplay(s.end)})</div>${cells}`;
+  });
+  html+=`<div style="margin-top:8px;font-size:12px;color:var(--muted)">🟢 Green = available &nbsp; 🔴 Red = booked</div>`;
   const bestSlot=findNextVacantSlot(CLINIC_SESSIONS[0].start,busy);
-  if(bestSlot>=0){
-   html+=`<div style="margin-top:8px;color:#0b8f8f;font-weight:700">🟢 Next vacant slot: ${minutesToDisplay(bestSlot)}</div>`;
+  if(bestSlot>=0&&freeCount>0){
+   html+=`<div style="margin-top:6px;color:#0b8f8f;font-weight:700">Next vacant slot: ${minutesToDisplay(bestSlot)}</div>`;
   }else{
-   html+=`<div style="margin-top:8px;color:#d64545">No vacant slots left for this date.</div>`;
+   html+=`<div style="margin-top:6px;color:#d64545;font-weight:700">No vacant slots left for this date.</div>`;
   }
   result.style.color="";
   result.innerHTML=html;
