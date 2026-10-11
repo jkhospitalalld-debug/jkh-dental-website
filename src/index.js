@@ -26,6 +26,7 @@ export default {
           status: 400, headers: { "Content-Type": "application/json", ...cors }
         });
       }
+      await ensureApptIndex(env);
       const { results } = await env.DB.prepare(
         "SELECT id, name, phone, patient_type, service, pref_date, pref_time, message, status FROM appointments WHERE pref_date = ? AND status != 'cancelled' ORDER BY pref_time ASC, created_at ASC"
       ).bind(date).all();
@@ -228,6 +229,7 @@ export default {
     if (path === "/api/appointments/by-date" && request.method === "GET") {
       const date = url.searchParams.get("date");
       if (!date) return json({ error: "date required" }, 400);
+      await ensureApptIndex(env);
       const { results } = await env.DB.prepare(
         "SELECT pref_time FROM appointments WHERE pref_date = ? AND status != 'cancelled' ORDER BY pref_time ASC"
       ).bind(date).all();
@@ -268,10 +270,23 @@ export default {
     if (path === "/api/admin/appointments" && request.method === "GET") {
       const authErr = checkAuth(request, env);
       if (authErr) return authErr;
-      const { results } = await env.DB.prepare(
-        "SELECT * FROM appointments ORDER BY created_at DESC"
+      // Rows-read friendly: newest 200 (by primary key, no scan) plus every
+      // booking for the requested date (indexed on pref_date).
+      await ensureApptIndex(env);
+      const recent = await env.DB.prepare(
+        "SELECT * FROM appointments ORDER BY id DESC LIMIT 200"
       ).all();
-      return json(results);
+      let rows = recent.results;
+      const qDate = url.searchParams.get("date") || "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(qDate)) {
+        const forDate = await env.DB.prepare(
+          "SELECT * FROM appointments WHERE pref_date = ?"
+        ).bind(qDate).all();
+        const have = new Set(rows.map(r => r.id));
+        forDate.results.forEach(r => { if (!have.has(r.id)) rows.push(r); });
+      }
+      rows.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+      return json(rows);
     }
 
     // Admin: update appointment status
@@ -414,6 +429,15 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+let apptIndexReady = false;
+async function ensureApptIndex(env) {
+  if (apptIndexReady) return;
+  try {
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_appt_date ON appointments(pref_date)").run();
+    apptIndexReady = true;
+  } catch (e) { /* index is an optimisation only */ }
+}
 
 function checkAuth(request, env) {
   const auth = request.headers.get("Authorization") || "";
