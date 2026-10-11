@@ -456,26 +456,19 @@ async function loadAppointments(){
  const selectedDate=dateInput.value;
  const todayStr=new Date().toISOString().slice(0,10);
  list.innerHTML="Loading...";
- const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN},cache:"no-store"});
+ const res=await fetch("/api/admin/appointments?date="+encodeURIComponent(selectedDate),{headers:{"Authorization":"Bearer "+TOKEN},cache:"no-store"});
  const data=await res.json();
  const websiteSelected=data.filter(a=>a.pref_date===selectedDate && a.status!=='cancelled').map(a=>({
   name:a.name,phone:a.phone,patientType:a.patient_type,service:a.service,time:a.pref_time,source:'Requested online'
  }));
  let billingSelected=[];
  try{
-  const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients",{cache:"no-store"});
+  // Indexed lookup of this date's follow-ups only (no full patient list).
+  const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/followups?date="+encodeURIComponent(selectedDate),{cache:"no-store"});
   if(bres.ok){
-   const patients=await bres.json();
-   patients.forEach(p=>{
-    (p.visits||[]).forEach(v=>{
-     // v.next can be a plain date "YYYY-MM-DD" (old records) or a
-     // datetime-local value "YYYY-MM-DDTHH:MM" (new records with a time).
-     // Compare only the date part so both formats match correctly.
-     if(v.next && v.next.slice(0,10)===selectedDate){
-      const apptTime=v.next.length>10?v.next.slice(11,16):'';
-      billingSelected.push({name:p.form?.name||'Patient',phone:'',patientType:'',service:'Follow-up visit',time:apptTime,source:'Scheduled by doctor (UHID: '+p.id+')'});
-     }
-    });
+   const fups=await bres.json();
+   fups.forEach(f=>{
+    billingSelected.push({name:f.name||'Patient',phone:f.mobile||'',patientType:'',service:'Follow-up visit',time:f.time||'',source:'Scheduled by doctor (UHID: '+f.uhid+')'});
    });
   }
  }catch(e){}
@@ -519,16 +512,13 @@ async function loadAppointments(){
 
 async function fetchApptBadgeCount(){
  try{
-  const res=await fetch("/api/admin/appointments",{headers:{"Authorization":"Bearer "+TOKEN},cache:"no-store"});
-  const data=await res.json();
   const todayStr=new Date().toISOString().slice(0,10);
+  const res=await fetch("/api/admin/appointments?date="+encodeURIComponent(todayStr),{headers:{"Authorization":"Bearer "+TOKEN},cache:"no-store"});
+  const data=await res.json();
   let count=data.filter(a=>a.pref_date===todayStr && a.status!=='cancelled').length;
   try{
-   const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/patients",{cache:"no-store"});
-   if(bres.ok){
-    const patients=await bres.json();
-    patients.forEach(p=>(p.visits||[]).forEach(v=>{if(v.next && v.next.slice(0,10)===todayStr)count++;}));
-   }
+   const bres=await fetch("https://jkh-billand-pres.jkhospitalalld.workers.dev/api/followups?date="+encodeURIComponent(todayStr),{cache:"no-store"});
+   if(bres.ok){ count+=(await bres.json()).length; }
   }catch(e){}
   updateApptBadge(count);
  }catch(e){}
