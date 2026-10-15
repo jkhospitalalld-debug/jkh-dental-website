@@ -125,6 +125,7 @@ a.back{color:var(--teal);font-weight:700;font-size:13px;text-decoration:none}
 <label style="margin:0" id="threadPatientLabel">Conversation</label>
 <button class="secondary" style="width:auto;margin:0" onclick="closeThread()">← Back to list</button>
 </div>
+<div id="adminPatientFiles" style="margin-bottom:10px"></div>
 <div id="adminChatThread" style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
 <div style="display:flex;gap:8px">
 <input id="adminReplyInput" placeholder="Type your reply..." style="flex:1;margin:0" onkeydown="if(event.key==='Enter')sendAdminReply()">
@@ -307,8 +308,33 @@ async function openThread(uhid,phone,name){
  document.getElementById("conversationListBox").style.display="none";
  document.getElementById("threadBox").style.display="block";
  document.getElementById("threadPatientLabel").textContent=`${name} (UHID: ${uhid})`;
+ loadPatientFiles();
  await loadThread();
  await fetch(`/api/admin/messages/${encodeURIComponent(uhid)}`,{method:"PATCH",headers:{"Authorization":"Bearer "+TOKEN}});
+}
+
+async function loadPatientFiles(){
+ const box=document.getElementById("adminPatientFiles");
+ box.innerHTML="";
+ try{
+  const res=await fetch(`/api/admin/files?uhid=${encodeURIComponent(CURRENT_THREAD_UHID)}`,{headers:{"Authorization":"Bearer "+TOKEN}});
+  const files=await res.json();
+  if(!Array.isArray(files)||!files.length)return;
+  box.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:6px">📎 Patient reports (latest 2):</div>'+files.map(f=>`<button class="secondary" style="width:auto;margin:0 6px 6px 0;font-size:13px" onclick="openPatientFile(${f.id})">${f.mime==="application/pdf"?"📄":"🖼️"} ${esc(f.filename)}</button>`).join("");
+ }catch(e){}
+}
+
+async function openPatientFile(id){
+ const w=window.open("","_blank");
+ try{
+  const res=await fetch(`/api/admin/files/${id}`,{headers:{"Authorization":"Bearer "+TOKEN}});
+  if(!res.ok)throw new Error();
+  const blobUrl=URL.createObjectURL(await res.blob());
+  if(w){w.location=blobUrl;}else{location.href=blobUrl;}
+ }catch(e){
+  if(w)w.close();
+  alert("Could not open the file.");
+ }
 }
 
 async function loadThread(){
