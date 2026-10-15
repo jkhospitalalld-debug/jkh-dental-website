@@ -164,6 +164,83 @@ export default {
       return json(results);
     }
 
+    // ---- Patient report files (PDF / JPG). Max 2 per patient; newest replaces oldest ----
+    // Public: patient uploads one file (called once per file, 1-2 files per send)
+    if (path === "/api/files" && request.method === "POST") {
+      const body = await request.json();
+      if (!body.uhid || !body.phone || !body.data || !body.filename) return json({ error: "uhid, phone, filename and data required" }, 400);
+      const mime = body.mime === "application/pdf" ? "application/pdf" : (body.mime === "image/jpeg" ? "image/jpeg" : null);
+      if (!mime) return json({ error: "Only PDF or JPG files are allowed." }, 400);
+      if (typeof body.data !== "string" || body.data.length > 1800000) {
+        return json({ error: "File too large. Please use a smaller file (PDF up to about 1.3 MB)." }, 413);
+      }
+      await ensureFilesTable(env);
+      const fname = String(body.filename).slice(0, 120);
+      await env.DB.prepare(
+        "INSERT INTO patient_files (uhid, phone, patient_name, filename, mime, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).bind(body.uhid, body.phone, body.patient_name || "", fname, mime, body.data, Date.now()).run();
+      // Keep only the latest 2 files for this patient; older ones are auto-deleted
+      await env.DB.prepare(
+        "DELETE FROM patient_files WHERE uhid = ? AND id NOT IN (SELECT id FROM patient_files WHERE uhid = ? ORDER BY created_at DESC, id DESC LIMIT 2)"
+      ).bind(body.uhid, body.uhid).run();
+      // Show a line in the chat thread so the clinic sees it + gets a push notification
+      await env.DB.prepare(
+        "INSERT INTO patient_messages (uhid, phone, patient_name, sender, message, read_by_admin, created_at) VALUES (?, ?, ?, 'patient', ?, 0, ?)"
+      ).bind(body.uhid, body.phone, body.patient_name || "", "📎 Report shared: " + fname, Date.now()).run();
+      await notifyAdminPush(env, "New patient report", `${body.patient_name || "A patient"} (UHID: ${body.uhid}) shared a report file.`);
+      return json({ ok: true });
+    }
+
+    // Public: patient lists their own stored files (no file data, only names)
+    if (path === "/api/files/by-patient" && request.method === "GET") {
+      const uhid = url.searchParams.get("uhid");
+      const phone = (url.searchParams.get("phone") || "").replace(/\D/g, "").slice(-10);
+      if (!uhid || !phone) return json({ error: "uhid and phone required" }, 400);
+      await ensureFilesTable(env);
+      const { results } = await env.DB.prepare(
+        "SELECT id, filename, mime, created_at FROM patient_files WHERE uhid = ? AND phone LIKE ? ORDER BY created_at DESC, id DESC LIMIT 2"
+      ).bind(uhid, "%" + phone).all();
+      return json(results);
+    }
+
+    // Public: patient opens one of their own files
+    const pFileMatch = path.match(/^\/api\/files\/(\d+)$/);
+    if (pFileMatch && request.method === "GET") {
+      const uhid = url.searchParams.get("uhid");
+      const phone = (url.searchParams.get("phone") || "").replace(/\D/g, "").slice(-10);
+      if (!uhid || !phone) return json({ error: "uhid and phone required" }, 400);
+      await ensureFilesTable(env);
+      const row = await env.DB.prepare(
+        "SELECT filename, mime, data FROM patient_files WHERE id = ? AND uhid = ? AND phone LIKE ?"
+      ).bind(pFileMatch[1], uhid, "%" + phone).first();
+      if (!row) return json({ error: "Not found" }, 404);
+      return fileResponse(row);
+    }
+
+    // Admin: list files of one patient
+    if (path === "/api/admin/files" && request.method === "GET") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      const uhid = url.searchParams.get("uhid");
+      if (!uhid) return json({ error: "uhid required" }, 400);
+      await ensureFilesTable(env);
+      const { results } = await env.DB.prepare(
+        "SELECT id, filename, mime, created_at FROM patient_files WHERE uhid = ? ORDER BY created_at DESC, id DESC LIMIT 2"
+      ).bind(uhid).all();
+      return json(results);
+    }
+
+    // Admin: open a patient's file
+    const aFileMatch = path.match(/^\/api\/admin\/files\/(\d+)$/);
+    if (aFileMatch && request.method === "GET") {
+      const authErr = checkAuth(request, env);
+      if (authErr) return authErr;
+      await ensureFilesTable(env);
+      const row = await env.DB.prepare("SELECT filename, mime, data FROM patient_files WHERE id = ?").bind(aFileMatch[1]).first();
+      if (!row) return json({ error: "Not found" }, 404);
+      return fileResponse(row);
+    }
+
     // Admin: list all conversations (grouped by uhid, latest message + unread count)
     if (path === "/api/admin/messages" && request.method === "GET") {
       const authErr = checkAuth(request, env);
@@ -437,6 +514,50 @@ async function ensureApptIndex(env) {
     await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_appt_date ON appointments(pref_date)").run();
     apptIndexReady = true;
   } catch (e) { /* index is an optimisation only */ }
+}
+
+let filesTableReady = false;
+async function ensureFilesTable(env) {
+  if (filesTableReady) return;
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS patient_files (id INTEGER PRIMARY KEY AUTOINCREMENT, uhid TEXT NOT NULL, phone TEXT NOT NULL, patient_name TEXT, filename TEXT NOT NULL, mime TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER)"
+  ).run();
+  filesTableReady = true;
+}
+
+function fileResponse(row) {
+  const bin = atob(row.data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const safeName = String(row.filename).replace(/[^\w.\- ]/g, "_");
+  return new Response(bytes, {
+    headers: {
+      "Content-Type": row.mime,
+      "Content-Disposition": `inline; filename="${safeName}"`,
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+async function notifyAdminPush(env, title, bodyText) {
+  try {
+    const { results: subs } = await env.DB.prepare("SELECT * FROM push_subscriptions").all();
+    if (subs.length && env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
+      const payload = JSON.stringify({ title, body: bodyText, url: "/admin.html" });
+      for (const sub of subs) {
+        try {
+          await sendWebPush(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY
+          );
+        } catch (e) {
+          if (e && (e.status === 404 || e.status === 410)) {
+            await env.DB.prepare("DELETE FROM push_subscriptions WHERE id = ?").bind(sub.id).run();
+          }
+        }
+      }
+    }
+  } catch (e) {}
 }
 
 function checkAuth(request, env) {
